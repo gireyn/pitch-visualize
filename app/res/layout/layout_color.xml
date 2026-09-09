@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView android:layout_width="fill_parent" android:layout_height="fill_parent"
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <LinearLayout android:orientation="vertical" android:padding="16.0dip" android:layout_width="fill_parent" android:layout_height="fill_parent">
+        <FrameLayout android:layout_width="fill_parent" android:layout_height="wrap_content">
+            <TextView android:textAppearance="?android:textAppearanceLarge" android:layout_gravity="center|left" android:id="@id/textViewSelectColor" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/settings_color_select" />
+            <Button android:layout_gravity="center|right" android:id="@id/buttonDone" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@android:string/ok" />
+        </FrameLayout>
+        <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="48.0dip">
+            <Button android:textSize="10.0dip" android:id="@id/buttonRed" android:background="#ffff0000" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Red" android:layout_weight="1.0" />
+            <Button android:textSize="10.0dip" android:id="@id/buttonPink" android:background="#ffffc0cb" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Pink" android:layout_weight="1.0" />
+            <Button android:textSize="10.0dip" android:id="@id/buttonPurple" android:background="#ff800080" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Purple" android:layout_weight="1.0" />
+            <Button android:textSize="10.0dip" android:id="@id/buttonIndigo" android:background="#ff4b0082" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Indigo" android:layout_weight="1.0" />
+        </LinearLayout>
+        <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="48.0dip">
+            <Button android:textSize="10.0dip" android:id="@id/buttonBlue" android:background="#ff0000ff" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Blue" android:layout_weight="1.0" />
+            <Button android:textSize="10.0dip" android:id="@id/buttonLightBlue" android:background="#ffadd8e6" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Light Blue" android:layout_weight="1.0" />
+            <Button android:textSize="10.0dip" android:id="@id/buttonCyan" android:background="#ff00ffff" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Cyan" android:layout_weight="1.0" />
+            <Button android:textSize="10.0dip" android:id="@id/buttonTeal" android:background="#ff008080" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Teal" android:layout_weight="1.0" />
+        </LinearLayout>
+        <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="48.0dip">
+            <Button android:textSize="10.0dip" android:id="@id/buttonGreen" android:background="#ff008000" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Green" android:layout_weight="1.0" />
+            <Button android:textSize="10.0dip" android:id="@id/buttonLightGreen" android:background="#ff90ee90" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Light Green" android:layout_weight="1.0" />
+            <Button android:textSize="10.0dip" android:id="@id/buttonLime" android:background="#ff00ff00" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Lime" android:layout_weight="1.0" />
+            <Button android:textSize="10.0dip" android:id="@id/buttonYellow" android:background="#ffffff00" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Yellow" android:layout_weight="1.0" />
+        </LinearLayout>
+        <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="48.0dip">
+            <Button android:textSize="10.0dip" android:id="@id/buttonOrange" android:background="#ffffa500" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Orange" android:layout_weight="1.0" />
+            <Button android:textSize="10.0dip" android:id="@id/buttonLightGray" android:background="#ff808080" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Light Gray" android:layout_weight="1.0" />
+            <Button android:textSize="10.0dip" android:id="@id/buttonGray" android:background="#ff404040" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Gray" android:layout_weight="1.0" />
+            <Button android:textSize="10.0dip" android:id="@id/buttonDarkGray" android:background="#ff202020" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="Dark Gray" android:layout_weight="1.0" />
+        </LinearLayout>
+        <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginTop="16.0dip" android:layout_marginBottom="8.0dip">
+            <ImageView android:id="@id/imageViewRGBColor" android:background="#ffffff00" android:layout_width="42.0dip" android:layout_height="fill_parent" android:layout_marginTop="16.0dip" android:layout_marginRight="8.0dip" android:layout_marginBottom="16.0dip" />
+            <LinearLayout android:orientation="vertical" android:layout_width="fill_parent" android:layout_height="wrap_content">
+                <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginTop="8.0dip" android:layout_marginBottom="8.0dip">
+                    <TextView android:layout_gravity="center_vertical" android:id="@id/textViewR" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="R" />
+                    <SeekBar android:layout_gravity="center_vertical" android:id="@id/seekBarR" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginRight="8.0dip" android:max="255" android:layout_weight="1.0" />
+                    <Button android:gravity="center" android:layout_gravity="center_vertical" android:id="@id/buttonRDown" android:background="@drawable/custom_button" android:layout_width="32.0dip" android:layout_height="32.0dip" android:text="&lt;" />
+                    <TextView android:textSize="14.0dip" android:gravity="center_horizontal" android:layout_gravity="center_vertical" android:id="@id/textViewRValue" android:layout_width="32.0dip" android:layout_height="wrap_content" android:text="255" />
+                    <Button android:gravity="center" android:layout_gravity="center_vertical" android:id="@id/buttonRUp" android:background="@drawable/custom_button" android:layout_width="32.0dip" android:layout_height="32.0dip" android:text=">" />
+                </LinearLayout>
+                <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginTop="8.0dip" android:layout_marginBottom="8.0dip">
+                    <TextView android:layout_gravity="center_vertical" android:id="@id/textViewG" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="G" />
+                    <SeekBar android:layout_gravity="center_vertical" android:id="@id/seekBarG" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginRight="8.0dip" android:max="255" android:layout_weight="1.0" />
+                    <Button android:gravity="center" android:layout_gravity="center_vertical" android:id="@id/buttonGDown" android:background="@drawable/custom_button" android:layout_width="32.0dip" android:layout_height="32.0dip" android:text="&lt;" />
+                    <TextView android:textSize="14.0dip" android:gravity="center_horizontal" android:layout_gravity="center_vertical" android:id="@id/textViewGValue" android:layout_width="32.0dip" android:layout_height="wrap_content" android:text="255" />
+                    <Button android:gravity="center" android:layout_gravity="center_vertical" android:id="@id/buttonGUp" android:background="@drawable/custom_button" android:layout_width="32.0dip" android:layout_height="32.0dip" android:text=">" />
+                </LinearLayout>
+                <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginTop="8.0dip" android:layout_marginBottom="8.0dip">
+                    <TextView android:layout_gravity="center_vertical" android:id="@id/textViewB" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="B" />
+                    <SeekBar android:layout_gravity="center_vertical" android:id="@id/seekBarB" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginRight="8.0dip" android:max="255" android:layout_weight="1.0" />
+                    <Button android:gravity="center" android:layout_gravity="center_vertical" android:id="@id/buttonBDown" android:background="@drawable/custom_button" android:layout_width="32.0dip" android:layout_height="32.0dip" android:text="&lt;" />
+                    <TextView android:textSize="14.0dip" android:gravity="center_horizontal" android:layout_gravity="center_vertical" android:id="@id/textViewBValue" android:layout_width="32.0dip" android:layout_height="wrap_content" android:text="255" />
+                    <Button android:gravity="center" android:layout_gravity="center_vertical" android:id="@id/buttonBUp" android:background="@drawable/custom_button" android:layout_width="32.0dip" android:layout_height="32.0dip" android:text=">" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

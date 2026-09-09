@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView android:id="@id/scrollView" android:layout_width="fill_parent" android:layout_height="fill_parent"
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <LinearLayout android:orientation="vertical" android:layout_width="fill_parent" android:layout_height="wrap_content">
+        <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_margin="5.0dip">
+            <TextView android:textAppearance="?android:textAppearanceMedium" android:id="@id/textView" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/threshold" android:layout_weight="10.0" />
+            <TextView android:gravity="right" android:id="@id/textViewThreshold" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginRight="5.0dip" android:text="0.1" android:layout_weight="1.0" />
+        </LinearLayout>
+        <SeekBar android:id="@id/seekBarThreshold" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginLeft="15.0dip" android:layout_marginTop="5.0dip" android:layout_marginRight="5.0dip" android:layout_marginBottom="5.0dip" />
+        <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_margin="5.0dip">
+            <TextView android:textAppearance="?android:textAppearanceMedium" android:id="@id/textView3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/horizontal_zooming" android:layout_weight="10.0" />
+            <TextView android:gravity="right" android:id="@id/textViewHorizontalZooming" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginRight="5.0dip" android:text="1.0" android:layout_weight="1.0" />
+        </LinearLayout>
+        <SeekBar android:id="@id/seekBarHorizontalZooming" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginLeft="15.0dip" android:layout_marginTop="5.0dip" android:layout_marginRight="5.0dip" android:layout_marginBottom="5.0dip" />
+        <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_margin="5.0dip">
+            <TextView android:textAppearance="?android:textAppearanceMedium" android:id="@id/textView4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/vertical_zooming" android:layout_weight="10.0" />
+            <TextView android:gravity="right" android:id="@id/textViewVerticalZooming" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginRight="5.0dip" android:text="1.0" android:layout_weight="1.0" />
+        </LinearLayout>
+        <SeekBar android:id="@id/seekBarVerticalZooming" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginLeft="15.0dip" android:layout_marginTop="5.0dip" android:layout_marginRight="5.0dip" android:layout_marginBottom="5.0dip" />
+        
+        
+        
+        
+        
+        
+        <TextView android:textAppearance="?android:textAppearanceMedium" android:id="@id/textAutoScroll" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="5.0dip" android:text="@string/settings_auto_scroll" />
+        <CheckBox android:id="@id/checkBoxAutoScroll" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="15.0dip" android:layout_marginTop="10.0dip" android:layout_marginBottom="10.0dip" android:text="@string/settings_enable_auto_scroll" />
+        <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginLeft="15.0dip" android:layout_marginTop="5.0dip" android:layout_marginRight="5.0dip" android:layout_marginBottom="5.0dip">
+            <TextView android:id="@id/textViewScrollSpeed" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="5.0dip" android:layout_marginBottom="5.0dip" android:text="@string/settings_scroll_speed" />
+            <SeekBar android:layout_gravity="center_vertical" android:id="@id/seekBarScrollSpeed" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_weight="1.0" />
+            <TextView android:gravity="right" android:id="@id/textViewScrollSpeedVal" android:layout_width="24.0dip" android:layout_height="wrap_content" android:layout_margin="5.0dip" android:text="2" />
+        </LinearLayout>
+        <CheckBox android:id="@id/checkBoxDisplayHz" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="5.0dip" android:layout_marginTop="10.0dip" android:layout_marginBottom="10.0dip" android:text="@string/settings_display_hz" />
+        <TextView android:textAppearance="?android:textAppearanceMedium" android:id="@id/textViewTuner" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="5.0dip" android:text="@string/settings_tuner" />
+        <CheckBox android:id="@id/checkBoxDisplayTuner" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="15.0dip" android:text="@string/settings_display_tuner" />
+        <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginLeft="15.0dip" android:layout_marginTop="5.0dip" android:layout_marginRight="5.0dip" android:layout_marginBottom="5.0dip">
+            <TextView android:id="@id/textViewTunerSmooth" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="5.0dip" android:layout_marginBottom="5.0dip" android:text="@string/settings_tuner_smooth" />
+            <SeekBar android:layout_gravity="center_vertical" android:id="@id/seekBarTunerSmooth" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_weight="1.0" />
+            <TextView android:gravity="right" android:id="@id/textViewTunerSmoothVal" android:layout_width="36.0dip" android:layout_height="wrap_content" android:layout_margin="5.0dip" android:text="1" />
+        </LinearLayout>
+        
+        
+        <TextView android:textAppearance="?android:textAppearanceMedium" android:id="@id/textViewBpm" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="5.0dip" android:text="@string/settings_tempo" />
+        <CheckBox android:id="@id/checkBoxDisplayBpm" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="15.0dip" android:text="@string/settings_display_bpm" />
+        <TextView android:id="@id/textViewMetronome" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="15.0dip" android:layout_marginTop="5.0dip" android:layout_marginBottom="5.0dip" android:text="@string/settings_metronome" />
+        <CheckBox android:id="@id/checkBoxDisplayMetronome" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="25.0dip" android:text="@string/settings_display_metronome" />
+        <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginLeft="15.0dip" android:layout_marginTop="5.0dip" android:layout_marginRight="5.0dip">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="5.0dip" android:layout_marginBottom="5.0dip" android:text="BPM" android:layout_weight="1.0" />
+            <TextView android:gravity="right" android:id="@id/textViewBpmVal" android:layout_width="36.0dip" android:layout_height="wrap_content" android:layout_margin="5.0dip" android:text="120" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginLeft="15.0dip" android:layout_marginRight="5.0dip" android:layout_marginBottom="5.0dip">
+            <Button android:gravity="center" android:id="@id/buttonBPMDown" android:layout_width="32.0dip" android:layout_height="38.0dip" android:text="&lt;" />
+            <SeekBar android:layout_gravity="center_vertical" android:id="@id/seekBarBpm" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_weight="1.0" />
+            <Button android:gravity="center" android:id="@id/buttonBPMUp" android:layout_width="32.0dip" android:layout_height="38.0dip" android:text=">" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginLeft="15.0dip" android:layout_marginTop="5.0dip" android:layout_marginRight="5.0dip" android:layout_marginBottom="5.0dip">
+            <TextView android:layout_gravity="center_vertical" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginRight="15.0dip" android:text="@string/settings_meter" />
+            <RadioGroup android:orientation="horizontal" android:id="@id/radioGroupMeter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_weight="1.0">
+                <RadioButton android:id="@id/radioButtonMeter4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="4/4" android:layout_weight="1.0" />
+                <RadioButton android:id="@id/radioButtonMeter3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="3/4" android:layout_weight="1.0" />
+                <RadioButton android:id="@id/radioButtonMeterNone" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/settings_meter_none" android:layout_weight="1.0" />
+            </RadioGroup>
+        </LinearLayout>
+        <TextView android:textAppearance="?android:textAppearanceMedium" android:id="@id/textViewButtonDisplay" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="5.0dip" android:text="@string/settings_button_display" />
+        <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginLeft="15.0dip" android:layout_marginTop="5.0dip" android:layout_marginRight="5.0dip" android:layout_marginBottom="5.0dip">
+            <CheckBox android:id="@id/checkBoxDisplayButtonHold" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="5.0dip" android:text="HOLD" />
+            <CheckBox android:id="@id/checkBoxDisplayButtonScale" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="5.0dip" android:text="@string/settings_scale" />
+            <CheckBox android:id="@id/checkBoxDisplayButtonTempo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="5.0dip" android:text="@string/settings_tempo" />
+        </LinearLayout>
+        
+        
+        <TextView android:textAppearance="?android:textAppearanceMedium" android:id="@id/textViewColor" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="5.0dip" android:text="@string/settings_color" />
+        <FrameLayout android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginLeft="32.0dip" android:layout_marginTop="2.0dip" android:layout_marginRight="32.0dip" android:layout_marginBottom="2.0dip">
+            <TextView android:id="@id/textViewColorPitch" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/settings_color_pitch" />
+            <ImageButton android:textSize="12.0dip" android:layout_gravity="right" android:id="@id/buttonColorPitch" android:background="@drawable/backgroundstate" android:padding="2.0dip" android:layout_width="96.0dip" android:layout_height="24.0dip" android:src="#ffffff00" android:onClick="onClick" />
+        </FrameLayout>
+        <FrameLayout android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginLeft="32.0dip" android:layout_marginTop="2.0dip" android:layout_marginRight="32.0dip" android:layout_marginBottom="2.0dip">
+            <TextView android:id="@id/textViewColorTempo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/settings_color_tempo" />
+            <ImageButton android:textSize="12.0dip" android:layout_gravity="right" android:id="@id/buttonColorTempo" android:background="@drawable/backgroundstate" android:padding="2.0dip" android:layout_width="96.0dip" android:layout_height="24.0dip" android:src="#ff444444" android:onClick="onClick" />
+        </FrameLayout>
+        <FrameLayout android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginLeft="32.0dip" android:layout_marginTop="2.0dip" android:layout_marginRight="32.0dip" android:layout_marginBottom="2.0dip">
+            <TextView android:id="@id/textViewColorMetronome" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/settings_color_metronome" />
+            <ImageButton android:textSize="12.0dip" android:layout_gravity="right" android:id="@id/buttonColorMetronome" android:background="@drawable/backgroundstate" android:padding="2.0dip" android:layout_width="96.0dip" android:layout_height="24.0dip" android:src="#ff000080" android:onClick="onClick" />
+        </FrameLayout>
+        </LinearLayout>
+</ScrollView>

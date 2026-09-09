@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout android:orientation="vertical" android:id="@id/dialog_bpm" android:layout_width="fill_parent" android:layout_height="wrap_content"
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <TextView android:textAppearance="?android:textAppearanceMedium" android:id="@id/textViewBpm" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="2.0dip" android:layout_marginTop="5.0dip" android:layout_marginBottom="5.0dip" android:text="@string/settings_tempo" />
+    <CheckBox android:id="@id/checkBoxDisplayBpm" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="5.0dip" android:text="@string/settings_display_bpm" />
+    <LinearLayout android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_margin="5.0dip">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="BPM" android:layout_weight="1.0" />
+        <TextView android:gravity="right" android:id="@id/textViewBpmValInDialog" android:layout_width="28.0dip" android:layout_height="wrap_content" android:text="120" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginLeft="2.0dip" android:layout_marginTop="5.0dip" android:layout_marginRight="2.0dip" android:layout_marginBottom="15.0dip">
+        <Button android:gravity="center" android:id="@id/buttonBPMDown" android:layout_width="36.0dip" android:layout_height="42.0dip" android:layout_marginRight="5.0dip" android:text="&lt;" />
+        <SeekBar android:layout_gravity="center_vertical" android:id="@id/seekBarBpmInDialog" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_weight="1.0" />
+        <Button android:gravity="center" android:id="@id/buttonBPMUp" android:layout_width="36.0dip" android:layout_height="42.0dip" android:layout_marginLeft="5.0dip" android:text=">" />
+    </LinearLayout>
+    <TextView android:id="@id/textViewMetronome" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="5.0dip" android:text="@string/settings_metronome" />
+    <CheckBox android:id="@id/checkBoxDisplayMetronome" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="15.0dip" android:layout_marginBottom="5.0dip" android:text="@string/settings_display_metronome" />
+</LinearLayout>

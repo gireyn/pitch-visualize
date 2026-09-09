@@ -1,0 +1,13 @@
+/media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/SettingsActivity.java
+/media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/MainSurfaceView.java
+/media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/ScaleConfig.java
+/media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/Recorder.java
+/media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/MainActivity.java
+/media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/LongClickRepeatAdapter.java
+/media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/Analyzer.java
+/media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/FFT4g.java
+/media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/ColorPopupWindow.java
+/media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/Settings.java
+/media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/LoadActivity.java
+/media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/MathEval.java
+/media/fsek294Gi/package/pitch-visualize/pitch-visualize/_build/gen/com/tadaoyamaoka/vocalpitchmonitor/R.java
