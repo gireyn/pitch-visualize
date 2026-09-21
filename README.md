@@ -1,140 +1,109 @@
-# VocalPitchMonitor (no-ads) — with musescore-xen-tuner scale configs
+# PitchVisual
 
-An Android pitch monitor app built from scratch (pure Java, no Gradle, no
-third-party SDKs) that is behaviorally and visually alike the original
-`VocalPitchMonitor.apk` — **without any ads** — and adds **tuning-config
-importing** using the exact text grammar of
-[musescore-xen-tuner](musescore-xen-tuner/).
+使用 **Flutter / Dart** 重写的离线音高监测器，支持 **iOS 与 Android**。
+同一套音高算法、微分音调律和界面运行于双端，无广告、无账号、无运行时联网服务。
 
-Build output: `VocalPitchMonitor-NoAds.apk` (signed, installable).
+## 功能
 
-## Features
+- 实时单声音高检测、音高历史曲线、频率与音分偏差、调音器。
+- 默认 FFT 滚动频谱：黑底橙黄色强度图，纵轴为对数频率并按当前调律标注音高名；每个八度等高。
+- 频谱覆盖 C1–C9（约 33 Hz–8.37 kHz），色标为 −90 至 0 dBFS；支持冻结、回放与缩放，可在「更多选项」切回音高曲线。
+- 默认 **7ed2 on C**，内置 **天干音阶**；支持通过系统文件选择器导入 xen-tuner 文本配置。
+- 支持音分、频率比、等分律、任意周期、数学表达式、中文音名和逐音灰度颜色。
+- 调律原文和解析结果保存到本地，源文件移动或失效后仍可使用；修改源文件后需重新导入。
+- 录音、自动保存 WAV、录音库、导入、播放、暂停续播和删除；每段最长 5 分钟。
+- PCM16 单/双声道 WAV 输入，8–192 kHz，导入后统一为单声道；设备采集保留原始采样率。
+- 视觉节拍器、BPM、拍号、节拍线、缩放、噪声阈值、平滑、颜色和快捷按钮设置。
+- 竖屏、横屏、平板及系统大字体布局；冻结图表和手动调整音域。
+- 音高曲线与 FFT 频谱支持双指竖直拉开放大、捏合缩小，以及上下拖动音域；手动调整会暂停自动跟随，可点图表右上角定位按钮恢复。
+- 后台或系统音频中断时释放麦克风、结束并保存录音；回放保留暂停位置。
 
-- **Pitch monitor** (faithful port): 4096-point FFT + autocorrelation pitch
-  detection with octave-error correction and harmonic-sum refinement, the
-  pitch-history graph, big note name, tuner needle, BPM/metronome, and the
-  original settings (threshold, zooming, calibration, transpose, colors,
-  note names, button visibility, …).
-- **No ads**: no AdMob, no Google Play Services, no INTERNET permission.
-  The only permission is `RECORD_AUDIO`.
-- **Tuning-config only**: the app always runs on a tuning config. The bundled
-  **"7ed2 on C"** scale is the default; import others via the scale button.
-- **Scale config importing** (`Scale` button → *Import tuning config…*):
-  pick any `.txt`/`.json` tuning config through the system file picker.
-- **The app remembers the config file and always runs on it**:
-  - the file URI and display name are persisted in app preferences;
-  - a parsed cache of the scale is persisted as well;
-  - on every launch the file is re-read and re-parsed automatically;
-  - if the file is gone or the URI permission was lost, the cached scale is
-    still applied — closing/killing the app never corrupts the active scale.
-- **Continuous microtonal pitch**: the FFT+ACF detector is refined with
-  parabolic interpolation (ACF lag and log-power FFT peak) so the pitch line
-  tracks smoothly — sub-cent precision, no octave jumps on voice-like
-  spectra.
-- **Full musescore-xen-tuner grammar** for pitches (see
-  `app/src/com/tadaoyamaoka/vocalpitchmonitor/ScaleConfig.java`):
-  - `1200c` / `1/13*1901.955c` — cents, arbitrary arithmetic expression
-  - `3/2`, `1/1` — frequency ratios (→ cents via log2)
-  - `5\53`, `72\186ed6` — equal divisions (`a\b` = a steps of b-edo;
-    `a\bedc` = a steps of b-edc, c defaults to 2)
-  - `1000me`, `ie2` — xen-tuner decimal units
-  - `Math.pow(3/2,3)`, `MATH.log(3)/Math.LN2`, `2**3`, `^`, `PI`, `E`, … —
-    `Math.*`/`MATH.*` functions and constants (JS-`eval`-like semantics)
-  - reference note `甲4: 320` / `A4: 440` / `E4: 320` — scale names or
-    standard letter notes; the reference anchors the first listed nominal
-    (xen-tuner relative-nominal-0 semantics)
-  - optional scale-name line: `甲 乙 丙 丁 戊 己 庚 辛 壬 癸`
-  - optional per-note color line: `136 84 84 …` — one gray value per scale
-    note inside a period (do not include the next-period note); each value
-    is R=G=B in 0..255 (136 → RGB(136,136,136)). A missing line falls back
-    to the same defaults (first note 136, the others 84); a shorter list
-    wraps around from the start.
-  - `//` comments and blank lines ignored, UTF-8 (BOM tolerated)
-- **Note colors come from the tuning config**: each scale note's grid row and
-  left-column label are drawn in its config color. The old "Scale" and
-  "Chromatic" color groups were removed from Settings → Color (only Pitch,
-  Beats and Metronome colors remain there).
-- Custom scales are rendered on their own grid (rows at the exact scale-note
-  cents across periods, names + register on the left), the big display shows
-  the nearest scale note, and the left column is sized to the widest note
-  name so wide glyphs (甲, 癸, …) are never clipped. The top tuner strip
-  shows a fixed ±(1200/7)-cent window — the ratio 2^(±1/7) — around the
-  detected pitch: long ticks sit exactly on the scale notes (name + register
-  below) and five short ticks between every adjacent pair of notes divide
-  the log-pitch interval into six equal parts.
-- "Semitone" is not meaningful for arbitrary tuning scales: the two semitone
-  settings ("Indicate lines of a semitone", "Display semitones on the
-  vertical axis") were removed from Settings and are always off. The
-  "Display frequency in Hz" option is on by default (also applied once when
-  upgrading an older install).
+应用启动后会请求麦克风权限，授权后自动连续测量音高。点击屏幕底部 **录音**
+才开始录制，再点击 **保存录音** 结束并保存，音高测量继续进行。
+未点击录音时不保存音频；录音只存储于应用私有目录。
+本应用用于人声或单音乐器，不做复音分离。视觉节拍器不发声。
 
-## Project layout
+## 运行
 
-```
-app/                          Android app source (Java + resources)
-  AndroidManifest.xml
-  res/                        layouts/drawables/values/menus (from the original UI)
-  src/com/tadaoyamaoka/vocalpitchmonitor/
-    MainActivity.java         main logic, config import + persistence
-    MainSurfaceView.java      pitch display (standard + custom-scale modes)
-    Analyzer.java             FFT+ACF pitch detection (ported)
-    FFT4g.java                Ooura real FFT (ported)
-    Recorder.java             AudioRecord/AudioTrack capture & playback
-    Settings.java             preferences (+ config URI/name/payload keys)
-    SettingsActivity.java     settings UI (ported)
-    LoadActivity.java         recorded-wav loader (ported)
-    ColorPopupWindow.java     color picker (ported)
-    LongClickRepeatAdapter.java (ported)
-    ScaleConfig.java          musescore-xen-tuner config parser (new)
-    MathEval.java             JS-eval-like expression evaluator (new)
-tests/                        JVM unit tests for the parser + pitch detector
-build.sh                      builds the APK with aapt2/javac/d8/apksigner
-_work/                        build toolchain + reference APK decompilation
-VocalPitchMonitor-NoAds.apk   the built, signed APK
+本次验证环境：Flutter **3.47.3** / Dart **3.13.3**，Xcode **27.0**。
+最低目标：Android API **24**，iOS **15.0**。
+
+```sh
+flutter pub get
+flutter devices
+flutter run -d <device-id>
 ```
 
-## Building
+Android 需安装对应 Android SDK、构建工具与 JDK。iOS 构建需 macOS 与 Xcode；
+真机运行请在 `ios/Runner.xcworkspace` 的 Signing & Capabilities 中选择开发团队。
+麦克风权限声明已分别配置在 AndroidManifest.xml 和 Info.plist。
 
-Requires only a JDK (17) and the Android SDK build-tools + platform jars
-(already staged under `_work/`; `build.sh` resolves them):
+```sh
+# Android APK（当前 release 使用开发调试签名；发布前配置自己的签名）
+flutter build apk --release
 
-```bash
-./build.sh          # -> VocalPitchMonitor-NoAds.apk
+# iOS 模拟器
+flutter build ios --simulator --debug --no-codesign
+
+# iOS 真机未签名构建
+flutter build ios --release --no-codesign
 ```
 
-## Testing
+Android 输出：`build/app/outputs/flutter-apk/app-release.apk`。
+iOS 输出：`build/ios/iphonesimulator/Runner.app` 或 `build/ios/iphoneos/Runner.app`。
+App Store / Play 发布所需的生产签名、商店资料和真机验收由发布者配置。
 
-```bash
-# parser grammar + tuning-config tests (uses the real 天干音阶.txt etc.)
-javac -d _build/test -encoding UTF-8 \
-  tests/TestParser.java tests/TestPitch.java \
-  app/src/com/tadaoyamaoka/vocalpitchmonitor/{MathEval,ScaleConfig,Analyzer,FFT4g}.java
-java -cp _build/test TestParser   # grammar/conversion checks
-java -cp _build/test TestPitch    # pitch detection on synthetic sines
+## 验证
+
+```sh
+flutter analyze
+flutter test
+
+# 在已启动的 iOS 或 Android 模拟器上验证真实原生通道、存储、回放和音高分析
+flutter test integration_test/platform_smoke_test.dart -d <device-id>
 ```
 
-## Using a tuning config
+测试覆盖调律表达式与缓存、标准 DFT/FFT 数值、已知频率与谐波、连续重采样、
+WAV 数据校验、录音状态、权限拒绝、保存失败、后台中断，以及小屏/横屏/大字体布局。
+集成测试需授予麦克风权限以验证启动后自动测量；测试生成并清理自己的测试 WAV，
+不会保存麦克风音频。
+真机还应验收：首次授权/拒绝、内置麦克风、蓝牙/有线耳机、电话中断和文件选择器。
 
-Example (`天干音阶.txt` — already in this folder):
+## 目录
 
+```text
+lib/
+  domain/audio/        FFT、自相关音高算法、重采样、常驻分析 isolate
+  domain/tuning/       xen-tuner 调律与数学表达式解析
+  domain/models/       设置和 WAV 数据
+  data/services/       平台通道
+  data/repositories/   调律设置、录音文件管理
+  ui/                  Flutter 界面和监测状态
+android/               Kotlin 麦克风、播放器、文件选择器
+ios/                  Swift 麦克风、播放器、文件选择器、隐私清单
+assets/tunings/         内置调律
+test/                 单元与组件测试
+integration_test/      双端原生通道冒烟测试
 ```
-// standard note
-甲4: 320
 
-// pitches of one period; the last one is the first note of the next period
-0\186ed6 7\186ed6 16\186ed6 23\186ed6 30\186ed6 35\186ed6 42\186ed6 49\186ed6 58\186ed6 65\186ed6 72\186ed6
-甲 乙 丙 丁 戊 己 庚 辛 壬 癸
-```
+音频通过原生接口传入 PCM16；常驻 Dart isolate 将其连续重采样为 44.1 kHz，
+运行 4096 点 FFT + 自相关检测，避免在界面线程执行重计算。
+同一 FFT 经过 Hann 窗幅值校正生成频谱，以 576 个对数频率带传回界面；
+频谱不受单声音高检测的门限影响，可显示泛音、噪声和无音高信号。
+历史频谱按小图块缓存，音频丢帧处保留空隙，冻结期间仍继续采集。
+算法保留原版的倍频修正与频谱插值，并修正了旧 FFT 的数值问题。
+对比方法和结果见 [DSP 测试说明](test/domain/audio/README.md)。
 
-1. Tap the scale name (top left, e.g. “C Major”).
-2. Choose **Import tuning config…** and pick `天干音阶.txt`.
-3. The monitor now displays the 天干 scale: detected notes as 甲4/乙4/…,
-   grid rows at the exact scale pitches, register repeating every ~1200.76c
-   (72/186 of the 6:1 equave).
-4. The choice survives app restarts automatically.
+原 Java 项目 `app/`、JVM 测试 `tests/`、`build.sh` 和原 APK 暂时保留作为迁移参考，
+不参与 Flutter 构建。原说明见 [legacy-android.md](docs/legacy-android.md)，
+实现决策见 [flutter-migration.md](docs/flutter-migration.md)。
 
-## License
+Android 保留原应用 ID `com.tadaoyamaoka.vocalpitchmonitor`，兼容读取原设置和私有录音。
+覆盖旧安装仍要求相同签名；默认 Flutter 调试签名通常与旧 APK 不同，请勿为覆盖安装而直接删除有数据的旧应用。
+iOS bundle ID 为 `com.tadaoyamaoka.pitchVisual`。
 
-The original VocalPitchMonitor is open source (Apache-2.0, © tadaoyamaoka).
-This port keeps the same package name and adds no proprietary components;
-the xen-tuner grammar is ported from musescore-xen-tuner (GPL-3.0, © euwbah).
+## 来源与许可
+
+原 VocalPitchMonitor：Apache-2.0，© tadaoyamaoka。
+xen-tuner 调律语法来源：musescore-xen-tuner，GPL-3.0，© euwbah。
+保留原项目的来源与许可声明，Flutter SDK 及其依赖许可可在应用「设置 → 开源许可」查看。

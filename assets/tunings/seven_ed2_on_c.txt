@@ -1,0 +1,12 @@
+// standard note
+C4: 261.6255653005986
+
+
+// stantard pitches and note names. Pitches should include all notes within a period as well as the first note for next period, as a periodic mode to repeat in different registers. Names do not include the next period.
+0\7 1\7 2\7 3\7 4\7 5\7 6\7 7\7
+
+C D E F G A B
+
+
+// added: colors for each note, do not include the next period, one same numbers for R,G,B, for example, 136 means RGB(136,136,136).
+136 84 84 84 84 84 84
