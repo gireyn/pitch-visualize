@@ -9,6 +9,7 @@ import '../../../domain/audio/pitch_analyzer.dart';
 import '../../../domain/models/monitor_settings.dart';
 import '../../../domain/tuning/scale_config.dart';
 import '../../core/app_theme.dart';
+import 'graph_watermarks.dart';
 import 'monitor_controller.dart';
 import 'pitch_range_gesture.dart';
 import 'scale_grid.dart';
@@ -87,6 +88,10 @@ class _SpectrumGraphState extends State<SpectrumGraph> {
         color: SpectrumPalette.background,
         child: Column(
           children: [
+            GraphWatermarks(
+              scaleName: scale.name,
+              bpm: controller.settings.bpm,
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
               child: Wrap(
@@ -152,7 +157,7 @@ class _SpectrumGraphState extends State<SpectrumGraph> {
                           ),
                           builder: (context, interacting) => RepaintBoundary(
                             child: TweenAnimationBuilder<RangeValues>(
-                              tween: _SpectrumRangeTween(
+                              tween: PitchRangeTween(
                                 begin: target,
                                 end: target,
                               ),
@@ -198,8 +203,10 @@ class _SpectrumGraphState extends State<SpectrumGraph> {
                         ),
                       Positioned(
                         top: 8,
+                        left: 8,
                         right: 8,
                         child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (controller.held) const Chip(label: Text('已冻结')),
@@ -238,17 +245,6 @@ class _SpectrumGraphState extends State<SpectrumGraph> {
       ),
     );
   }
-}
-
-class _SpectrumRangeTween extends Tween<RangeValues> {
-  _SpectrumRangeTween({required RangeValues begin, required RangeValues end})
-    : super(begin: begin, end: end);
-
-  @override
-  RangeValues lerp(double t) => RangeValues(
-    ui.lerpDouble(begin!.start, end!.start, t)!,
-    ui.lerpDouble(begin!.end, end!.end, t)!,
-  );
 }
 
 /// Cache small raster strips: only the unfinished strip is encoded per frame.

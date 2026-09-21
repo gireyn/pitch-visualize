@@ -45,7 +45,6 @@ class MonitorScreen extends StatelessWidget {
                   ),
                 );
               }
-              if (action == 'scale') _showScale(context);
               if (action == 'hold') controller.toggleHold();
               if (action == 'spectrum') {
                 controller.updateSetting(
@@ -62,7 +61,6 @@ class MonitorScreen extends StatelessWidget {
                 ),
               ),
               PopupMenuItem(value: 'settings', child: Text('设置')),
-              PopupMenuItem(value: 'scale', child: Text('选择调律')),
               PopupMenuItem(value: 'hold', child: Text('冻结 / 继续图表')),
             ],
           ),
@@ -115,27 +113,32 @@ class MonitorScreen extends StatelessWidget {
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
-                                    SizedBox(
-                                      width: 280,
-                                      child: SingleChildScrollView(
-                                        child: Column(
-                                          children: [
-                                            if (controller
-                                                .settings
-                                                .showTuner) ...[
-                                              TunerStrip(
-                                                controller: controller,
-                                              ),
-                                              const SizedBox(height: 24),
+                                    if (controller.settings.showTuner ||
+                                        controller.settings.flashBeat) ...[
+                                      SizedBox(
+                                        width: 280,
+                                        child: SingleChildScrollView(
+                                          child: Column(
+                                            children: [
+                                              if (controller.settings.showTuner)
+                                                TunerStrip(
+                                                  controller: controller,
+                                                ),
+                                              if (controller
+                                                      .settings
+                                                      .showTuner &&
+                                                  controller.settings.flashBeat)
+                                                const SizedBox(height: 24),
+                                              if (controller.settings.flashBeat)
+                                                _BeatIndicator(
+                                                  controller: controller,
+                                                ),
                                             ],
-                                            _SessionStatus(
-                                              controller: controller,
-                                            ),
-                                          ],
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 24),
+                                      const SizedBox(width: 24),
+                                    ],
                                     Expanded(
                                       child: PitchGraph(controller: controller),
                                     ),
@@ -182,13 +185,13 @@ class MonitorScreen extends StatelessWidget {
                                       ),
                               ),
                             const SizedBox(height: 12),
-                            if (!wide && !largeText)
-                              _SessionStatus(controller: controller),
-                            const SizedBox(height: 8),
-                            _Transport(
-                              controller: controller,
-                              tools: _tools(context),
-                            ),
+                            if (!wide &&
+                                !largeText &&
+                                controller.settings.flashBeat) ...[
+                              _BeatIndicator(controller: controller),
+                              const SizedBox(height: 8),
+                            ],
+                            _Transport(controller: controller, tools: _tools()),
                           ],
                         ),
                       ),
@@ -199,24 +202,7 @@ class MonitorScreen extends StatelessWidget {
       ),
     ),
   );
-  List<Widget> _tools(BuildContext context) => [
-    if (controller.settings.showScale)
-      OutlinedButton.icon(
-        icon: const Icon(Icons.piano_outlined, size: 18),
-        onPressed: controller.busy ? null : () => _showScale(context),
-        label: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 170),
-          child: Text(
-            controller.scale?.name ?? '选择调律',
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ),
-    if (controller.settings.showTempo)
-      OutlinedButton(
-        onPressed: () => _showTempo(context),
-        child: Text('${controller.settings.bpm} BPM'),
-      ),
+  List<Widget> _tools() => [
     if (controller.settings.showHold)
       IconButton.filledTonal(
         tooltip: controller.held ? '继续图表' : '冻结图表',
@@ -225,100 +211,6 @@ class MonitorScreen extends StatelessWidget {
         icon: Icon(controller.held ? Icons.lock : Icons.lock_open),
       ),
   ];
-  void _showScale(BuildContext context) => showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    isScrollControlled: true,
-    useSafeArea: true,
-    builder: (context) => SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: Text('调律', style: Theme.of(context).textTheme.titleLarge),
-              subtitle: Text(
-                '当前：${controller.scale?.name}\n${controller.scale?.names.length} 个音 · 周期 ${controller.scale?.periodCents.toStringAsFixed(2)} 音分',
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.piano),
-              title: const Text('7ed2 on C'),
-              subtitle: const Text('默认 · 七等分八度'),
-              onTap: () {
-                Navigator.pop(context);
-                controller.useBundledScale(false);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.music_note_outlined),
-              title: const Text('天干音阶'),
-              subtitle: const Text('甲 乙 丙 丁 戊 己 庚 辛 壬 癸'),
-              onTap: () {
-                Navigator.pop(context);
-                controller.useBundledScale(true);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.file_open_outlined),
-              title: const Text('导入调律文件'),
-              subtitle: const Text('xen-tuner 文本配置（.txt / .json）'),
-              onTap: () {
-                Navigator.pop(context);
-                controller.importScale();
-              },
-            ),
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                '调律会复制并保存在此设备。修改原文件后，请重新导入。',
-                style: TextStyle(color: AppColors.muted),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-  void _showTempo(BuildContext context) {
-    var bpm = controller.settings.bpm.toDouble();
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      useSafeArea: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '${bpm.round()} BPM',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              Slider(
-                value: bpm,
-                min: 20,
-                max: 250,
-                divisions: 230,
-                label: '${bpm.round()}',
-                onChanged: (value) => setState(() => bpm = value),
-              ),
-              FilledButton(
-                onPressed: () {
-                  controller.updateSetting('bpm', bpm.round());
-                  Navigator.pop(context);
-                },
-                child: const Text('应用速度'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _showLibrary(BuildContext context) => Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => _RecordingLibrary(controller: controller),
@@ -326,88 +218,34 @@ class MonitorScreen extends StatelessWidget {
   );
 }
 
-class _SessionStatus extends StatelessWidget {
-  const _SessionStatus({required this.controller});
+class _BeatIndicator extends StatelessWidget {
+  const _BeatIndicator({required this.controller});
   final MonitorController controller;
   @override
   Widget build(BuildContext context) {
-    final label = switch (controller.mode) {
-      MonitorMode.idle => '就绪',
-      MonitorMode.listening => '正在监听',
-      MonitorMode.recording => '正在录音',
-      MonitorMode.playing => '正在回放',
-      MonitorMode.paused => '回放已暂停',
-    };
-    final seconds = controller.isRecording
-        ? controller.recordingSeconds
-        : controller.currentTime;
-    final time =
-        '${seconds ~/ 60}:${(seconds.toInt() % 60).toString().padLeft(2, '0')}';
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    return Wrap(
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 12,
-      runSpacing: 8,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              controller.isRecording
-                  ? Icons.fiber_manual_record
-                  : Icons.mic_none,
-              size: 16,
-              color: controller.isRecording
-                  ? Colors.redAccent
-                  : AppColors.accent,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              '$label  $time',
-              style: const TextStyle(color: AppColors.muted, fontSize: 12),
-            ),
-          ],
-        ),
-        SizedBox(
-          width: 64,
-          child: Semantics(
-            label: '麦克风音量',
-            value: '${(controller.level * 100).round()}%',
-            child: LinearProgressIndicator(
-              value: controller.level.clamp(0, 1),
-              minHeight: 4,
-              backgroundColor: AppColors.raised,
-              color: AppColors.accent,
-              borderRadius: BorderRadius.circular(4),
-            ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(
+        controller.settings.beatsPerBar == 0
+            ? 1
+            : controller.settings.beatsPerBar,
+        (index) => Container(
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color:
+                controller.beat == index &&
+                    controller.beatPhase < .25 &&
+                    !reduceMotion &&
+                    (controller.isCapturing || controller.isPlaying)
+                ? Color(controller.settings.metronomeColor)
+                : AppColors.line,
           ),
         ),
-        if (controller.settings.flashBeat)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: List.generate(
-              controller.settings.beatsPerBar == 0
-                  ? 1
-                  : controller.settings.beatsPerBar,
-              (index) => Container(
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color:
-                      controller.beat == index &&
-                          controller.beatPhase < .25 &&
-                          !reduceMotion &&
-                          (controller.isCapturing || controller.isPlaying)
-                      ? Color(controller.settings.metronomeColor)
-                      : AppColors.line,
-                ),
-              ),
-            ),
-          ),
-      ],
+      ),
     );
   }
 }
@@ -417,57 +255,70 @@ class _Transport extends StatelessWidget {
   final MonitorController controller;
   final List<Widget> tools;
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      spacing: 8,
-      children: [
-        if (controller.hasPendingRecording)
-          OutlinedButton(
-            onPressed: controller.busy ? null : controller.retrySaveRecording,
-            child: const Text('重试保存录音'),
-          ),
-        if (!controller.isCapturing)
-          IconButton.filled(
-            tooltip: '开始监听',
-            onPressed: controller.busy ? null : controller.startListening,
-            icon: const Icon(Icons.mic_none),
-          ),
-        if (controller.isCapturing)
-          FilledButton.icon(
-            onPressed: controller.busy ? null : controller.toggleRecording,
-            style: controller.isRecording
-                ? FilledButton.styleFrom(
-                    backgroundColor: const Color(0xffffb4ab),
-                  )
-                : null,
-            icon: Icon(
-              controller.isRecording
-                  ? Icons.save_outlined
-                  : Icons.fiber_manual_record,
+  Widget build(BuildContext context) {
+    final seconds = controller.recordingSeconds.toInt();
+    final recordingTime =
+        '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 8,
+        children: [
+          if (controller.hasPendingRecording)
+            OutlinedButton(
+              onPressed: controller.busy ? null : controller.retrySaveRecording,
+              child: const Text('重试保存录音'),
             ),
-            label: Text(controller.isRecording ? '保存录音' : '录音'),
+          if (!controller.isCapturing)
+            IconButton.filled(
+              tooltip: '开始监听',
+              onPressed: controller.busy ? null : controller.startListening,
+              icon: const Icon(Icons.mic_none),
+            ),
+          if (controller.isCapturing)
+            FilledButton.icon(
+              onPressed: controller.busy ? null : controller.toggleRecording,
+              style: controller.isRecording
+                  ? FilledButton.styleFrom(
+                      backgroundColor: const Color(0xffffb4ab),
+                    )
+                  : null,
+              icon: Icon(
+                controller.isRecording
+                    ? Icons.save_outlined
+                    : Icons.fiber_manual_record,
+              ),
+              label: Text(
+                controller.isRecording ? recordingTime : '录音',
+                semanticsLabel: controller.isRecording
+                    ? '保存录音，已录制 $recordingTime'
+                    : null,
+                style: const TextStyle(
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+          IconButton.filledTonal(
+            tooltip: '停止',
+            onPressed: controller.busy || controller.mode == MonitorMode.idle
+                ? null
+                : controller.stop,
+            icon: const Icon(Icons.stop),
           ),
-        IconButton.filledTonal(
-          tooltip: '停止',
-          onPressed: controller.busy || controller.mode == MonitorMode.idle
-              ? null
-              : controller.stop,
-          icon: const Icon(Icons.stop),
-        ),
-        IconButton.filledTonal(
-          tooltip: controller.isPlaying ? '暂停回放' : '播放录音',
-          onPressed:
-              controller.busy || !controller.canPlay || controller.isRecording
-              ? null
-              : controller.togglePlayback,
-          icon: Icon(controller.isPlaying ? Icons.pause : Icons.play_arrow),
-        ),
-        ...tools,
-      ],
-    ),
-  );
+          IconButton.filledTonal(
+            tooltip: controller.isPlaying ? '暂停回放' : '播放录音',
+            onPressed:
+                controller.busy || !controller.canPlay || controller.isRecording
+                ? null
+                : controller.togglePlayback,
+            icon: Icon(controller.isPlaying ? Icons.pause : Icons.play_arrow),
+          ),
+          ...tools,
+        ],
+      ),
+    );
+  }
 }
 
 class _MessageBanner extends StatelessWidget {

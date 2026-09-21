@@ -20,6 +20,14 @@ class SettingsScreen extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
               children: [
+                const _Section('调律'),
+                ListTile(
+                  leading: const Icon(Icons.piano_outlined),
+                  title: const Text('选择调律'),
+                  subtitle: Text(controller.scale?.name ?? '尚未选择'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: controller.busy ? null : () => _showScale(context),
+                ),
                 const _Section('音高检测'),
                 _slider(
                   '音量阈值',
@@ -161,8 +169,6 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const _Section('快捷操作'),
                 _switch('显示冻结按钮', 'showHold', s.showHold),
-                _switch('显示调律按钮', 'showScale', s.showScale),
-                _switch('显示速度按钮', 'showTempo', s.showTempo),
                 const _Section('关于 PitchVisual'),
                 const ListTile(
                   title: Text('离线音高监测 · Flutter'),
@@ -186,6 +192,63 @@ class SettingsScreen extends StatelessWidget {
       );
     },
   );
+  void _showScale(BuildContext context) => showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (context) => SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text('调律', style: Theme.of(context).textTheme.titleLarge),
+              subtitle: Text(
+                '当前：${controller.scale?.name}\n${controller.scale?.names.length} 个音 · 周期 ${controller.scale?.periodCents.toStringAsFixed(2)} 音分',
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.piano),
+              title: const Text('7ed2 on C'),
+              subtitle: const Text('默认 · 七等分八度'),
+              onTap: () {
+                Navigator.pop(context);
+                controller.useBundledScale(false);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.music_note_outlined),
+              title: const Text('天干音阶'),
+              subtitle: const Text('甲 乙 丙 丁 戊 己 庚 辛 壬 癸'),
+              onTap: () {
+                Navigator.pop(context);
+                controller.useBundledScale(true);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.file_open_outlined),
+              title: const Text('导入调律文件'),
+              subtitle: const Text('xen-tuner 文本配置（.txt / .json）'),
+              onTap: () {
+                Navigator.pop(context);
+                controller.importScale();
+              },
+            ),
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                '调律会复制并保存在此设备。修改原文件后，请重新导入。',
+                style: TextStyle(color: AppColors.muted),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
   Widget _switch(String label, String key, bool value, {String? subtitle}) =>
       SwitchListTile(
         title: Text(label),

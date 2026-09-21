@@ -8,6 +8,7 @@ import 'package:pitch_visual/data/repositories/settings_repository.dart';
 import 'package:pitch_visual/data/services/platform_service.dart';
 import 'package:pitch_visual/domain/models/wave_data.dart';
 import 'package:pitch_visual/domain/audio/log_spectrum.dart';
+import 'package:pitch_visual/domain/pitch_math.dart';
 import 'package:pitch_visual/ui/features/monitor/monitor_controller.dart';
 
 import '../data/fakes.dart';
@@ -300,6 +301,81 @@ void main() {
         2 / 30,
         3 / 30,
       ]);
+    },
+  );
+
+  test('curve auto range preserves visible history and saved zoom', () async {
+    await controller.initialize();
+    await controller.updateSetting('showSpectrum', false);
+    worker.frame(centsToFrequency(3600), 0);
+    worker.frame(centsToFrequency(8400), 1);
+    final expandedRange = controller.historyRange;
+    expect(controller.centerCents - expandedRange / 2, lessThan(3600));
+    expect(controller.centerCents + expandedRange / 2, greaterThan(8400));
+    expect(controller.settings.verticalZoom, 1);
+    expect(controller.history.length, 2);
+    for (var i = 2; i <= 18; i++) {
+      worker.frame(centsToFrequency(8400), i.toDouble());
+    }
+    expect(controller.historyRange, expandedRange);
+    worker.frame(centsToFrequency(8400), 19);
+    worker.frame(centsToFrequency(8400), 20);
+    expect(controller.historyRange, expandedRange);
+    worker.frame(centsToFrequency(8400), 21);
+    expect(controller.historyRange, 2400);
+  });
+
+  test(
+    'hold and manual range resist incoming jumps; resume fits history',
+    () async {
+      await controller.initialize();
+      await controller.updateSetting('showSpectrum', false);
+      worker.frame(centsToFrequency(3600), 0);
+      controller.toggleHold();
+      final heldCenter = controller.centerCents;
+      final heldRange = controller.historyRange;
+      worker.frame(centsToFrequency(8400), 1);
+      expect(controller.centerCents, heldCenter);
+      expect(controller.historyRange, heldRange);
+      expect(controller.history.length, 1);
+      controller.toggleHold();
+      expect(controller.historyRange, greaterThan(heldRange));
+      controller.adjustPitchRange(center: 4000, zoom: 1, baseRange: 6000);
+      worker.frame(centsToFrequency(9000), 2);
+      expect(controller.centerCents, 4000);
+      expect(controller.historyRange, 6000);
+      await controller.updateSetting('autoScroll', true);
+      expect(
+        controller.centerCents - controller.historyRange / 2,
+        lessThan(3600),
+      );
+      expect(
+        controller.centerCents + controller.historyRange / 2,
+        greaterThan(9000),
+      );
+    },
+  );
+
+  test(
+    'changing time window fits older visible notes when following resumes',
+    () async {
+      await controller.initialize();
+      await controller.updateSetting('showSpectrum', false);
+      await controller.updateSetting('scrollSpeed', 10);
+      worker.frame(centsToFrequency(1200), 0);
+      worker.frame(centsToFrequency(8400), 10);
+      worker.frame(centsToFrequency(8400), 12);
+      worker.frame(centsToFrequency(8400), 14);
+      expect(controller.historyRange, 2400);
+      await controller.updateSetting('scrollSpeed', 5);
+      expect(
+        controller.centerCents - controller.historyRange / 2,
+        lessThan(1200),
+      );
+      expect(
+        controller.centerCents + controller.historyRange / 2,
+        greaterThan(8400),
+      );
     },
   );
 

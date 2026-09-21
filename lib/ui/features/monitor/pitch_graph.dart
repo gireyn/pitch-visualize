@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../domain/models/monitor_settings.dart';
 import '../../../domain/tuning/scale_config.dart';
 import '../../core/app_theme.dart';
+import 'graph_watermarks.dart';
 import 'monitor_controller.dart';
 import 'pitch_range_gesture.dart';
 import 'spectrum_graph.dart';
@@ -19,13 +20,32 @@ class PitchGraph extends StatelessWidget {
       : _PitchHistoryGraph(controller: controller);
 }
 
-class _PitchHistoryGraph extends StatelessWidget {
+class _PitchHistoryGraph extends StatefulWidget {
   const _PitchHistoryGraph({required this.controller});
   final MonitorController controller;
+
+  @override
+  State<_PitchHistoryGraph> createState() => _PitchHistoryGraphState();
+}
+
+class _PitchHistoryGraphState extends State<_PitchHistoryGraph> {
+  RangeValues? _paintedViewport;
+
   @override
   Widget build(BuildContext context) {
+    final controller = widget.controller;
     final scale = controller.scale;
     if (scale == null) return const Center(child: CircularProgressIndicator());
+    final target = RangeValues(
+      controller.centerCents - controller.historyRange / 2,
+      controller.centerCents + controller.historyRange / 2,
+    );
+    final textScaler = MediaQuery.textScalerOf(context);
+    final padding = EdgeInsets.only(
+      // Keep moving scale labels below the tuning and tempo watermark.
+      top: 24 + textScaler.scale(12) * 1.9,
+      bottom: math.max(28, textScaler.scale(10) + 16),
+    );
     return Semantics(
       label: '音高历史图。当前${controller.note?.label ?? '无音高'}。纵轴为调律音名，横轴为时间。',
       child: ClipRRect(
@@ -37,47 +57,79 @@ class _PitchHistoryGraph extends StatelessWidget {
               Positioned.fill(
                 child: PitchRangeGesture(
                   controller: controller,
-                  baseRange: 2400,
-                  plotPadding: const EdgeInsets.only(top: 16, bottom: 28),
-                  builder: (context, interacting) => CustomPaint(
-                    painter: _HistoryPainter(
-                      scale: scale,
-                      settings: controller.settings,
-                      history: controller.history,
-                      time: controller.graphTime,
-                      seconds: controller.graphSeconds,
-                      center: controller.centerCents,
+                  baseRange: controller.historyBaseRange,
+                  visibleViewport: () => _paintedViewport ?? target,
+                  plotPadding: padding,
+                  builder: (context, interacting) => RepaintBoundary(
+                    child: TweenAnimationBuilder<RangeValues>(
+                      tween: PitchRangeTween(begin: target, end: target),
+                      duration:
+                          interacting ||
+                              !controller.settings.autoScroll ||
+                              controller.held ||
+                              MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 280),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, viewport, _) {
+                        _paintedViewport = viewport;
+                        return CustomPaint(
+                          painter: _HistoryPainter(
+                            scale: scale,
+                            settings: controller.settings,
+                            history: controller.history,
+                            time: controller.graphTime,
+                            seconds: controller.graphSeconds,
+                            viewport: viewport,
+                            textScaler: textScaler,
+                            padding: padding,
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
               ),
               Positioned(
-                top: 12,
-                right: 12,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    if (controller.held) const _Badge('已冻结'),
-                    if (!controller.settings.autoScroll) ...[
-                      IconButton.filledTonal(
-                        tooltip: '恢复自动跟随音域',
-                        onPressed: () =>
-                            controller.updateSetting('autoScroll', true),
-                        icon: const Icon(Icons.my_location),
+                    GraphWatermarks(
+                      scaleName: scale.name,
+                      bpm: controller.settings.bpm,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (controller.held) const _Badge('已冻结'),
+                          if (!controller.settings.autoScroll) ...[
+                            IconButton.filledTonal(
+                              tooltip: '恢复自动跟随音域',
+                              onPressed: () =>
+                                  controller.updateSetting('autoScroll', true),
+                              icon: const Icon(Icons.my_location),
+                            ),
+                            const SizedBox(width: 4),
+                            IconButton.filledTonal(
+                              tooltip: '音域上移',
+                              onPressed: () => controller.panRange(300),
+                              icon: const Icon(Icons.keyboard_arrow_up),
+                            ),
+                            const SizedBox(width: 4),
+                            IconButton.filledTonal(
+                              tooltip: '音域下移',
+                              onPressed: () => controller.panRange(-300),
+                              icon: const Icon(Icons.keyboard_arrow_down),
+                            ),
+                          ],
+                        ],
                       ),
-                      const SizedBox(width: 4),
-                      IconButton.filledTonal(
-                        tooltip: '音域上移',
-                        onPressed: () => controller.panRange(300),
-                        icon: const Icon(Icons.keyboard_arrow_up),
-                      ),
-                      const SizedBox(width: 4),
-                      IconButton.filledTonal(
-                        tooltip: '音域下移',
-                        onPressed: () => controller.panRange(-300),
-                        icon: const Icon(Icons.keyboard_arrow_down),
-                      ),
-                    ],
+                    ),
                   ],
                 ),
               ),
@@ -110,18 +162,24 @@ class _HistoryPainter extends CustomPainter {
     required this.history,
     required this.time,
     required this.seconds,
-    required this.center,
+    required this.viewport,
+    required this.textScaler,
+    required this.padding,
   });
   final ScaleConfig scale;
   final MonitorSettings settings;
   final List<PitchPoint> history;
-  final double time, seconds, center;
+  final double time, seconds;
+  final RangeValues viewport;
+  final TextScaler textScaler;
+  final EdgeInsets padding;
   void label(
     Canvas canvas,
     String value,
     Offset offset,
     Color color, {
     double size = 12,
+    double maxWidth = double.infinity,
   }) {
     final text = TextPainter(
       text: TextSpan(
@@ -129,28 +187,38 @@ class _HistoryPainter extends CustomPainter {
         style: TextStyle(color: color, fontSize: size, fontFamily: 'monospace'),
       ),
       textDirection: TextDirection.ltr,
-    )..layout();
+      textScaler: textScaler,
+      maxLines: 1,
+      ellipsis: '…',
+    )..layout(maxWidth: maxWidth);
     text.paint(canvas, offset);
   }
 
   @override
   void paint(Canvas canvas, Size size) {
-    final range = 2400 / settings.verticalZoom;
-    final min = center - range / 2, max = center + range / 2;
+    final min = viewport.start, max = viewport.end;
+    final range = max - min;
     final notes = visibleScaleNotes(scale, min, max);
     var left = 48.0;
     for (final note in notes) {
       final text = TextPainter(
         text: TextSpan(text: note.label, style: const TextStyle(fontSize: 12)),
         textDirection: TextDirection.ltr,
+        textScaler: textScaler,
       )..layout();
       left = math.max(left, text.width + 20);
     }
     left = math.min(left, size.width * .32);
-    final plot = Rect.fromLTRB(left, 16, size.width - 16, size.height - 28);
+    final plot = Rect.fromLTRB(
+      left,
+      padding.top,
+      size.width - 16,
+      size.height - padding.bottom,
+    );
     if (plot.width <= 0 || plot.height <= 0) return;
     double y(double cents) => plot.bottom - (cents - min) / range * plot.height;
-    for (final note in notes) {
+    var lastLabelY = double.negativeInfinity;
+    for (final note in notes.reversed) {
       final gray = scale.colorFor(note.index);
       final lineColor = Color(gray).withValues(alpha: .58);
       canvas.drawLine(
@@ -160,7 +228,17 @@ class _HistoryPainter extends CustomPainter {
           ..color = lineColor
           ..strokeWidth = .7,
       );
-      label(canvas, note.label, Offset(10, y(note.cents) - 7), Color(gray));
+      final yy = y(note.cents);
+      if (yy - lastLabelY >= textScaler.scale(12) * 1.3 + 5) {
+        lastLabelY = yy;
+        label(
+          canvas,
+          note.label,
+          Offset(10, yy - textScaler.scale(12) * .6),
+          Color(gray),
+          maxWidth: math.max(1, left - 18),
+        );
+      }
     }
     canvas.drawLine(
       Offset(plot.left, 0),
@@ -219,6 +297,12 @@ class _HistoryPainter extends CustomPainter {
           (lastTime != null && point.seconds - lastTime > .2) ||
           (lastCent != null && (cents - lastCent).abs() > 650)) {
         path.moveTo(x, yy);
+        // A moveTo-only segment has no stroke. Retain isolated notes as dots.
+        canvas.drawCircle(
+          Offset(x, yy),
+          1.1,
+          Paint()..color = Color(settings.pitchColor),
+        );
       } else {
         path.lineTo(x, yy);
       }

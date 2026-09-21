@@ -1,11 +1,23 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../../domain/models/monitor_settings.dart';
 import 'monitor_controller.dart';
+
+class PitchRangeTween extends Tween<RangeValues> {
+  PitchRangeTween({required RangeValues begin, required RangeValues end})
+    : super(begin: begin, end: end);
+
+  @override
+  RangeValues lerp(double t) => RangeValues(
+    lerpDouble(begin!.start, end!.start, t)!,
+    lerpDouble(begin!.end, end!.end, t)!,
+  );
+}
 
 /// Moves the pitch viewport in plot coordinates, keeping the pinch focal pitch
 /// under the fingers. Horizontal motion never changes the time axis.
@@ -18,12 +30,15 @@ class PitchRangeGesture extends StatefulWidget {
     required this.builder,
     this.minCents,
     this.maxCents,
+    this.visibleViewport,
   });
 
   final MonitorController controller;
   final double baseRange;
   final EdgeInsets plotPadding;
   final double? minCents, maxCents;
+  // Read the painted bounds when a gesture interrupts automatic animation.
+  final RangeValues Function()? visibleViewport;
   final Widget Function(BuildContext context, bool interacting) builder;
 
   @override
@@ -32,6 +47,7 @@ class PitchRangeGesture extends StatefulWidget {
 
 class _PitchRangeGestureState extends State<PitchRangeGesture> {
   double _startZoom = 1, _anchorCents = 0;
+  double _startBaseRange = 2400, _lastCenter = 0, _lastZoom = 1;
   bool _changed = false;
   final _team = GestureArenaTeam();
   final _pointers = <int>{};
@@ -88,9 +104,20 @@ class _PitchRangeGestureState extends State<PitchRangeGesture> {
                         if (height <= 0) return;
                         _startZoom = widget.controller.settings.verticalZoom
                             .clamp(_minZoom, MonitorSettings.maxVerticalZoom);
-                        final range = widget.baseRange / _startZoom;
+                        final viewport = widget.visibleViewport?.call();
+                        _startBaseRange = viewport == null
+                            ? widget.baseRange
+                            : (viewport.end - viewport.start) * _startZoom;
+                        final range = _startBaseRange / _startZoom;
+                        _lastCenter = _clampCenter(
+                          viewport == null
+                              ? widget.controller.centerCents
+                              : (viewport.start + viewport.end) / 2,
+                          range,
+                        );
+                        _lastZoom = _startZoom;
                         _anchorCents =
-                            _clampCenter(widget.controller.centerCents, range) +
+                            _lastCenter +
                             pitchFraction(details.localFocalPoint.dy) * range;
                       }
                       ..onUpdate = (details) {
@@ -101,29 +128,23 @@ class _PitchRangeGestureState extends State<PitchRangeGesture> {
                           _minZoom,
                           MonitorSettings.maxVerticalZoom,
                         );
-                        final range = widget.baseRange / zoom;
+                        final range = _startBaseRange / zoom;
                         final center = _clampCenter(
                           _anchorCents -
                               pitchFraction(details.localFocalPoint.dy) * range,
                           range,
                         );
-                        final currentZoom = widget
-                            .controller
-                            .settings
-                            .verticalZoom
-                            .clamp(_minZoom, MonitorSettings.maxVerticalZoom);
-                        final currentCenter = _clampCenter(
-                          widget.controller.centerCents,
-                          widget.baseRange / currentZoom,
-                        );
-                        if ((zoom - currentZoom).abs() < .000001 &&
-                            (center - currentCenter).abs() < .000001) {
+                        if ((zoom - _lastZoom).abs() < .000001 &&
+                            (center - _lastCenter).abs() < .000001) {
                           return;
                         }
+                        _lastZoom = zoom;
+                        _lastCenter = center;
                         if (!_changed) setState(() => _changed = true);
                         widget.controller.adjustPitchRange(
                           center: center,
                           zoom: zoom,
+                          baseRange: _startBaseRange,
                         );
                       }
                       ..onEnd = (details) {

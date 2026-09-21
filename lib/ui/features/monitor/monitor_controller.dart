@@ -14,6 +14,7 @@ import '../../../domain/models/monitor_settings.dart';
 import '../../../domain/models/wave_data.dart';
 import '../../../domain/pitch_math.dart';
 import '../../../domain/tuning/scale_config.dart';
+import 'history_viewport.dart';
 
 enum MonitorMode { idle, listening, recording, playing, paused }
 
@@ -48,6 +49,11 @@ class MonitorController extends ChangeNotifier {
   List<RecordingEntry> recordings = [];
   RecordingEntry? selectedRecording;
   final List<PitchPoint> _history = [];
+  final _historyViewport = HistoryViewport();
+  double _historyBaseRange = 2400;
+  // Automatic fitting is transient; it must not rewrite the saved zoom.
+  double get historyBaseRange => _historyBaseRange;
+  double get historyRange => _historyBaseRange / settings.verticalZoom;
   List<PitchPoint>? _heldHistory;
   final List<SpectrumPoint> _spectra = [];
   List<SpectrumPoint>? _heldSpectra;
@@ -156,6 +162,8 @@ class MonitorController extends ChangeNotifier {
   void _clearAnalysis() {
     _worker.reset();
     _history.clear();
+    _historyViewport.reset();
+    _historyBaseRange = 2400;
     _heldHistory = null;
     _spectra.clear();
     _heldSpectra = null;
@@ -372,18 +380,25 @@ class MonitorController extends ChangeNotifier {
     final next = settings.withValue(key, value);
     if (scale != null) await settingsRepository.save(next, scale!);
     settings = next;
+    if (key == 'showSpectrum' ||
+        key == 'verticalZoom' ||
+        (key == 'autoScroll' && settings.autoScroll)) {
+      _historyViewport.reset();
+    }
     _worker.threshold = settings.threshold;
     if (!settings.showHold) {
       held = false;
       _heldHistory = null;
       _heldSpectra = null;
     }
+    _fitHistoryViewport();
   });
   void toggleHold() {
     held = !held;
     _heldHistory = held ? List.of(_history) : null;
     _heldSpectra = held ? List.of(_spectra) : null;
     if (held) _heldTime = currentTime;
+    _fitHistoryViewport();
     _notify();
   }
 
@@ -392,8 +407,18 @@ class MonitorController extends ChangeNotifier {
     _notify();
   }
 
-  void adjustPitchRange({required double center, required double zoom}) {
+  void adjustPitchRange({
+    required double center,
+    required double zoom,
+    double? baseRange,
+  }) {
     if (!center.isFinite || !zoom.isFinite) return;
+    if (!settings.showSpectrum &&
+        baseRange != null &&
+        baseRange.isFinite &&
+        baseRange > 0) {
+      _historyBaseRange = baseRange;
+    }
     centerCents = center;
     settings = settings
         .withValue('verticalZoom', zoom)
@@ -457,12 +482,33 @@ class MonitorController extends ChangeNotifier {
     if (_history.length > 2700) _history.removeRange(0, _history.length - 2700);
     if (!held) {
       _updateNote();
-      if (settings.autoScroll && cents != null) {
+      if (settings.showSpectrum && settings.autoScroll && cents != null) {
         final margin = 600 / settings.verticalZoom;
         if ((cents - centerCents).abs() > margin) centerCents = cents;
       }
+      _fitHistoryViewport();
     }
     _notify();
+  }
+
+  void _fitHistoryViewport() {
+    if (held || !settings.autoScroll || settings.showSpectrum) return;
+    final time = math.max(
+      graphTime,
+      _history.isEmpty ? 0.0 : _history.last.seconds,
+    );
+    final fitted = _historyViewport.fit(
+      pitches: _history
+          .where((point) => point.seconds >= time - graphSeconds)
+          .map((point) => point.cents)
+          .whereType<double>(),
+      time: time,
+      center: centerCents,
+      range: historyRange,
+      minimumRange: 2400 / settings.verticalZoom,
+    );
+    centerCents = fitted.center;
+    _historyBaseRange = fitted.range * settings.verticalZoom;
   }
 
   void _onEvent(Map<String, Object?> event) {
@@ -557,6 +603,7 @@ class MonitorController extends ChangeNotifier {
           ? 0
           : progress.floor() % settings.beatsPerBar;
       beatPhase = progress % 1;
+      _fitHistoryViewport();
       _notify();
     }
   }

@@ -55,3 +55,18 @@ renderer. It is a test fixture, not a microphone recording. The chart uses the
 active tuning's note names on a logarithmic C1–C9 axis (approximately 33 Hz to
 8.37 kHz); 576 display bands do not increase the 4096-point FFT's physical
 frequency resolution.
+
+## Adaptive pitch-history range
+
+Validated on 2026-09-22: `dart analyze` reported no issues and all 188 Flutter
+unit/widget tests passed. The curve now fits the pitches in the visible time
+window, expands with padded bounds, and contracts only after a range at least
+25% smaller remains sufficient for 2 seconds. Bounds animate together over
+280 ms; manual gestures and reduced-motion mode update immediately. Automatic
+fitting does not rewrite the saved vertical zoom.
+
+The 16 added regression tests cover alternating large jumps, vibrato, range
+contraction, silence, reset, time-window changes, hold/resume, manual takeover
+during animation, focal-point zooming, isolated notes, large text, landscape,
+and actual raster output. The [rendered curve preview](screenshots/pitch-history-range.png)
+uses synthetic notes spanning four octaves, not a microphone recording.
