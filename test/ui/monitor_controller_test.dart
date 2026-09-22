@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+import 'package:pitch_visual/l10n/l10n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pitch_visual/data/repositories/recording_repository.dart';
 import 'package:pitch_visual/data/repositories/settings_repository.dart';
@@ -32,6 +34,10 @@ class TestRecordingRepository extends RecordingRepository {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  late AppLocalizations strings;
+  setUp(() async {
+    strings = await AppLocalizations.delegate.load(const Locale('en'));
+  });
   late Directory folder;
   late FakePlatformService platform;
   late FakePitchWorker worker;
@@ -133,7 +139,7 @@ void main() {
       expect(controller.initialized, isTrue);
       expect(controller.mode, MonitorMode.idle);
       expect(controller.busy, isFalse);
-      expect(controller.message, contains('Microphone denied'));
+      expect(controller.message!.resolve(strings), contains('Microphone'));
       expect(platform.keepScreenOn, isFalse);
       platform.captureError = null;
       await controller.startListening();
@@ -235,7 +241,7 @@ void main() {
         expect(platform.capturing, isFalse);
         expect(platform.keepScreenOn, isFalse);
         expect(controller.mode, MonitorMode.idle);
-        expect(controller.message, contains('Storage full'));
+        expect(controller.message!.resolve(strings), contains('Storage full'));
       },
     );
   }
@@ -282,7 +288,7 @@ void main() {
       ); // joins serialized work after stop
       expect(controller.mode, MonitorMode.idle);
       expect(controller.recordings.length, 1);
-      expect(controller.message, contains('中断'));
+      expect(controller.message!.resolve(strings), contains('interrupted'));
       await controller.resume();
       expect(controller.mode, MonitorMode.idle);
     },
@@ -444,8 +450,96 @@ void main() {
     platform.saveError = StateError('Storage full');
     await controller.updateSetting('bpm', 160);
     expect(controller.settings.bpm, 120);
-    expect(controller.message, contains('Storage full'));
+    expect(controller.message!.resolve(strings), contains('Storage full'));
     expect(controller.busy, isFalse);
+  });
+
+  test(
+    'EDO preference preserves loaded tuning until explicitly selected',
+    () async {
+      await controller.initialize();
+      final configured = controller.scale;
+      worker.frame(440, 1 / 30);
+      final configuredNote = controller.note;
+      await controller.updateSetting('edo', 31);
+      expect(controller.settings.edo, 31);
+      expect(controller.scale, same(configured));
+      expect(controller.note, same(configuredNote));
+      expect((await controller.settingsRepository.load()).scale.edo, isNull);
+
+      await controller.useEdoScale();
+      expect(controller.scale!.edo, 31);
+      expect(
+        controller.note!.label,
+        controller.scale!.nearestNote(frequencyToCents(440)).label,
+      );
+      expect((await controller.settingsRepository.load()).scale.edo, 31);
+
+      await controller.updateSetting('edo', 12);
+      expect(controller.scale!.edo, 12);
+      expect(controller.note!.label, 'A4');
+      expect(controller.deviation, closeTo(0, 1e-9));
+      expect((await controller.settingsRepository.load()).scale.edo, 12);
+
+      await controller.useBundledScale(false);
+      expect(controller.scale!.edo, isNull);
+      expect(controller.settings.edo, 12);
+      expect(
+        (await controller.settingsRepository.load()).scale.name,
+        '7ed2 on C',
+      );
+    },
+  );
+
+  test(
+    'failed EDO selection and edit retain the active scale and note',
+    () async {
+      await controller.initialize();
+      worker.frame(440, 1 / 30);
+      final configured = controller.scale;
+      final configuredNote = controller.note;
+      platform.saveError = StateError('Storage full');
+      await controller.useEdoScale();
+      expect(controller.scale, same(configured));
+      expect(controller.note, same(configuredNote));
+      expect(controller.message!.resolve(strings), contains('Storage full'));
+
+      platform.saveError = null;
+      await controller.useEdoScale();
+      final activeEdo = controller.scale;
+      final activeNote = controller.note;
+      final saved = platform.preferences;
+      platform.saveError = StateError('Storage full');
+      await controller.updateSetting('edo', 19);
+      expect(controller.settings.edo, 12);
+      expect(controller.scale, same(activeEdo));
+      expect(controller.note, same(activeNote));
+      expect(platform.preferences, saved);
+    },
+  );
+
+  test('imported tuning replaces EDO only after it is saved', () async {
+    await controller.initialize();
+    await controller.useEdoScale();
+    final edo = controller.scale;
+    platform.pickedFile = PickedFile(
+      name: 'Imported.txt',
+      bytes: Uint8List.fromList('C4: 260\n0c 200c 1200c\nC D'.codeUnits),
+    );
+    platform.saveError = StateError('Storage full');
+    await controller.importScale();
+    expect(controller.scale, same(edo));
+    platform.saveError = null;
+    await controller.importScale();
+    expect(controller.scale!.edo, isNull);
+    expect(controller.scale!.name, 'Imported');
+    await controller.updateSetting('edo', 19);
+    expect(controller.settings.edo, 19);
+    expect(controller.scale!.name, 'Imported');
+    final saved = await controller.settingsRepository.load();
+    expect(saved.settings.edo, 19);
+    expect(saved.scale.edo, isNull);
+    expect(saved.scale.name, 'Imported');
   });
 
   test(

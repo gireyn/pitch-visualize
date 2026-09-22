@@ -19,7 +19,11 @@ class _Platform extends PlatformService {
 }
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() {
+    binding.platformDispatcher.localesTestValue = const [Locale('zh')];
+    addTearDown(binding.platformDispatcher.clearLocalesTestValue);
+  });
   MonitorController controller() {
     final platform = _Platform();
     return MonitorController(

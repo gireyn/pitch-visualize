@@ -1,14 +1,17 @@
 import 'dart:convert';
+
 import 'package:flutter/services.dart';
+
 import '../../domain/models/monitor_settings.dart';
 import '../../domain/tuning/scale_config.dart';
+import '../../l10n/app_message.dart';
 import '../services/platform_service.dart';
 
 class SavedSettings {
   const SavedSettings(this.settings, this.scale, {this.notice});
   final MonitorSettings settings;
   final ScaleConfig scale;
-  final String? notice;
+  final AppMessage? notice;
 }
 
 class SettingsRepository {
@@ -36,6 +39,9 @@ class SettingsRepository {
             ? Map<String, Object?>.from(json['settings'] as Map)
             : json,
       );
+      if (json['scaleMode'] == 'edo') {
+        return SavedSettings(settings, ScaleConfig.equalDivision(settings.edo));
+      }
       final payload = json['scalePayload'] ?? json['key_config_payload'];
       final cached = payload is String
           ? ScaleConfig.fromPayload(payload)
@@ -48,7 +54,11 @@ class SettingsRepository {
           );
         } on FormatException {
           if (cached != null) {
-            return SavedSettings(settings, cached, notice: '已从缓存恢复调律');
+            return SavedSettings(
+              settings,
+              cached,
+              notice: AppMessage((strings) => strings.noticeTuningRestored),
+            );
           }
           rethrow;
         }
@@ -58,7 +68,7 @@ class SettingsRepository {
       return SavedSettings(
         settings,
         await bundledScale(),
-        notice: '本地设置无法完整读取，已恢复默认调律',
+        notice: AppMessage((strings) => strings.noticeSettingsRestored),
       );
     }
   }
@@ -68,9 +78,13 @@ class SettingsRepository {
         jsonEncode({
           'version': 1,
           'settings': settings.toJson(),
-          'scaleName': scale.name,
-          if (scale.source.isNotEmpty) 'scaleSource': scale.source,
-          'scalePayload': scale.toPayload(),
+          if (scale.edo != null)
+            'scaleMode': 'edo'
+          else ...{
+            'scaleName': scale.name,
+            if (scale.source.isNotEmpty) 'scaleSource': scale.source,
+            'scalePayload': scale.toPayload(),
+          },
         }),
       );
 }

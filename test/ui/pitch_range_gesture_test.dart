@@ -3,6 +3,7 @@ import 'dart:ui' show ClipOp;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pitch_visual/l10n/l10n.dart';
 import 'package:pitch_visual/data/repositories/recording_repository.dart';
 import 'package:pitch_visual/data/repositories/settings_repository.dart';
 import 'package:pitch_visual/domain/models/monitor_settings.dart';
@@ -76,6 +77,9 @@ void main() {
         );
         await tester.pumpWidget(
           MaterialApp(
+            locale: const Locale('zh'),
+            supportedLocales: AppLocalizations.supportedLocales,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
             home: Scaffold(
               body: Center(
                 child: scrollable

@@ -30,14 +30,45 @@ void main() {
     },
   );
   test('source and payload persist with every setting', () async {
-    const settings = MonitorSettings(bpm: 183, showBeats: true);
+    const settings = MonitorSettings(bpm: 183, showBeats: true, edo: 31);
     await repository.save(settings, custom);
     final loaded = await repository.load();
     expect(loaded.settings.toJson(), settings.toJson());
     expect(loaded.scale.toPayload(), custom.toPayload());
     expect(loaded.scale.source, custom.source);
+    expect(loaded.scale.edo, isNull);
     expect(loaded.notice, isNull);
   });
+  test(
+    'EDO mode reloads its saved preference without a pseudo config',
+    () async {
+      for (final edo in [0, 12, 31, 72]) {
+        final settings = MonitorSettings(edo: edo);
+        await repository.save(settings, ScaleConfig.equalDivision(edo));
+        final json = jsonDecode(platform.preferences!) as Map;
+        expect(json['scaleMode'], 'edo');
+        expect(json.containsKey('scaleSource'), isFalse);
+        expect(json.containsKey('scalePayload'), isFalse);
+        final loaded = await repository.load();
+        expect(loaded.settings.edo, edo);
+        expect(loaded.scale.edo, edo);
+        expect(loaded.notice, isNull);
+      }
+    },
+  );
+  test(
+    'legacy preferences retain loaded config over the EDO preference',
+    () async {
+      platform.preferences = jsonEncode({
+        'key_edo': 19,
+        'key_config_payload': custom.toPayload(),
+      });
+      final loaded = await repository.load();
+      expect(loaded.settings.edo, 19);
+      expect(loaded.scale.edo, isNull);
+      expect(loaded.scale.name, 'Custom');
+    },
+  );
   test('legacy flat preferences retain tuning cache and meter', () async {
     platform.preferences = jsonEncode({
       'key_bpm': 160,
@@ -63,20 +94,17 @@ void main() {
       expect(loaded.notice, isNotNull);
     },
   );
-  test(
-    'source and cache corruption preserves valid preferences but defaults tuning',
-    () async {
-      platform.preferences = jsonEncode({
-        'settings': {'bpm': 155},
-        'scaleSource': 'broken',
-        'scalePayload': 'broken',
-      });
-      final loaded = await repository.load();
-      expect(loaded.settings.bpm, 155);
-      expect(loaded.scale.name, '7ed2 on C');
-      expect(loaded.notice, isNotNull);
-    },
-  );
+  test('source and cache corruption preserves valid preferences but defaults tuning', () async {
+    platform.preferences = jsonEncode({
+      'settings': {'bpm': 155},
+      'scaleSource': 'broken',
+      'scalePayload': 'broken',
+    });
+    final loaded = await repository.load();
+    expect(loaded.settings.bpm, 155);
+    expect(loaded.scale.name, '7ed2 on C');
+    expect(loaded.notice, isNotNull);
+  });
   test(
     'broken JSON and native read errors recover with a visible notice',
     () async {

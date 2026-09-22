@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'app_exception.dart';
+
 /// Bounded, uncompressed mono PCM16 audio shared by both platforms.
 class WaveData {
   WaveData({required this.pcm, required this.sampleRate});
@@ -11,17 +13,26 @@ class WaveData {
 
   factory WaveData.decode(Uint8List bytes) {
     if (bytes.length < 44 || bytes.length > maxFileBytes) {
-      throw const FormatException('WAV 文件为空、损坏或超过 64 MB');
+      throw const AppFormatException(
+        AppFormatError.wavInvalidFile,
+        'WAV file is empty, damaged, or larger than 64 MB',
+      );
     }
     final data = ByteData.sublistView(bytes);
     String tag(int offset) =>
         String.fromCharCodes(bytes.sublist(offset, offset + 4));
     if (tag(0) != 'RIFF' || tag(8) != 'WAVE') {
-      throw const FormatException('请选择未压缩的 PCM 16 位 WAV 文件');
+      throw const AppFormatException(
+        AppFormatError.wavPcmRequired,
+        'Select an uncompressed 16-bit PCM WAV file',
+      );
     }
     final end = data.getUint32(4, Endian.little) + 8;
     if (end > bytes.length || end < 12) {
-      throw const FormatException('WAV 文件不完整');
+      throw const AppFormatException(
+        AppFormatError.wavIncomplete,
+        'WAV file is incomplete',
+      );
     }
     int? rate, channels, blockAlign;
     Uint8List? samples;
@@ -30,13 +41,19 @@ class WaveData {
       final length = data.getUint32(offset + 4, Endian.little);
       final start = offset + 8;
       if (length + (length & 1) > end - start) {
-        throw const FormatException('WAV 数据长度无效');
+        throw const AppFormatException(
+          AppFormatError.wavInvalidLength,
+          'WAV data length is invalid',
+        );
       }
       if (tag(offset) == 'fmt ') {
         if (length < 16 ||
             data.getUint16(start, Endian.little) != 1 ||
             data.getUint16(start + 14, Endian.little) != 16) {
-          throw const FormatException('仅支持 PCM 16 位 WAV，暂不支持压缩或浮点音频');
+          throw const AppFormatException(
+            AppFormatError.wavUnsupportedFormat,
+            'Only 16-bit PCM WAV is supported; compressed and floating-point audio are not supported',
+          );
         }
         channels = data.getUint16(start + 2, Endian.little);
         rate = data.getUint32(start + 4, Endian.little);
@@ -46,7 +63,12 @@ class WaveData {
       }
       offset = start + length + (length & 1);
     }
-    if (offset != end) throw const FormatException('WAV 数据块不完整');
+    if (offset != end) {
+      throw const AppFormatException(
+        AppFormatError.wavIncompleteChunk,
+        'WAV data chunk is incomplete',
+      );
+    }
     if (rate == null ||
         rate < 8000 ||
         rate > 192000 ||
@@ -56,10 +78,16 @@ class WaveData {
         samples == null ||
         samples.isEmpty ||
         samples.length % (channels * 2) != 0) {
-      throw const FormatException('WAV 采样率、声道或音频数据无效');
+      throw const AppFormatException(
+        AppFormatError.wavInvalidAudio,
+        'WAV sample rate, channels, or audio data is invalid',
+      );
     }
     if (samples.length / (rate * channels * 2) > maxSeconds) {
-      throw const FormatException('录音最长支持 5 分钟');
+      throw const AppFormatException(
+        AppFormatError.recordingTooLong,
+        'Recordings can be at most 5 minutes long',
+      );
     }
     if (channels == 1) {
       return WaveData(pcm: Uint8List.fromList(samples), sampleRate: rate);

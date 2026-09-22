@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../domain/models/monitor_settings.dart';
 import '../../../domain/tuning/scale_config.dart';
+import '../../../l10n/l10n.dart';
 import '../../core/app_theme.dart';
 import 'graph_watermarks.dart';
 import 'monitor_controller.dart';
@@ -47,7 +48,9 @@ class _PitchHistoryGraphState extends State<_PitchHistoryGraph> {
       bottom: math.max(28, textScaler.scale(10) + 16),
     );
     return Semantics(
-      label: '音高历史图。当前${controller.note?.label ?? '无音高'}。纵轴为调律音名，横轴为时间。',
+      label: context.l10n.graphPitchHistoryDescription(
+        controller.note?.label ?? context.l10n.graphNoPitch,
+      ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: ColoredBox(
@@ -106,23 +109,23 @@ class _PitchHistoryGraphState extends State<_PitchHistoryGraph> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (controller.held) const _Badge('已冻结'),
+                          if (controller.held) _Badge(context.l10n.graphFrozen),
                           if (!controller.settings.autoScroll) ...[
                             IconButton.filledTonal(
-                              tooltip: '恢复自动跟随音域',
+                              tooltip: context.l10n.graphResumeAutoFollow,
                               onPressed: () =>
                                   controller.updateSetting('autoScroll', true),
                               icon: const Icon(Icons.my_location),
                             ),
                             const SizedBox(width: 4),
                             IconButton.filledTonal(
-                              tooltip: '音域上移',
+                              tooltip: context.l10n.graphRangeUp,
                               onPressed: () => controller.panRange(300),
                               icon: const Icon(Icons.keyboard_arrow_up),
                             ),
                             const SizedBox(width: 4),
                             IconButton.filledTonal(
-                              tooltip: '音域下移',
+                              tooltip: context.l10n.graphRangeDown,
                               onPressed: () => controller.panRange(-300),
                               icon: const Icon(Icons.keyboard_arrow_down),
                             ),
@@ -198,11 +201,12 @@ class _HistoryPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final min = viewport.start, max = viewport.end;
     final range = max - min;
-    final notes = visibleScaleNotes(scale, min, max);
+    var lines = visibleScaleLines(scale, min, max);
     var left = 48.0;
-    for (final note in notes) {
+    for (final line in lines) {
+      if (line.label == null) continue;
       final text = TextPainter(
-        text: TextSpan(text: note.label, style: const TextStyle(fontSize: 12)),
+        text: TextSpan(text: line.label, style: const TextStyle(fontSize: 12)),
         textDirection: TextDirection.ltr,
         textScaler: textScaler,
       )..layout();
@@ -217,25 +221,27 @@ class _HistoryPainter extends CustomPainter {
     );
     if (plot.width <= 0 || plot.height <= 0) return;
     double y(double cents) => plot.bottom - (cents - min) / range * plot.height;
-    var lastLabelY = double.negativeInfinity;
-    for (final note in notes.reversed) {
-      final gray = scale.colorFor(note.index);
-      final lineColor = Color(gray).withValues(alpha: .58);
-      canvas.drawLine(
-        Offset(plot.left, y(note.cents)),
-        Offset(plot.right, y(note.cents)),
-        Paint()
-          ..color = lineColor
-          ..strokeWidth = .7,
+    final edo = scale.edo != null;
+    if (edo) {
+      lines = visibleScaleLines(
+        scale,
+        min,
+        max,
+        minimumCentsSpacing: range / plot.height * 4,
       );
-      final yy = y(note.cents);
-      if (yy - lastLabelY >= textScaler.scale(12) * 1.3 + 5) {
+    }
+    var lastLabelY = double.negativeInfinity;
+    for (final line in lines.reversed) {
+      final yy = y(line.cents);
+      drawScaleGridLine(canvas, plot, yy, line, edo: edo);
+      if (line.label != null &&
+          yy - lastLabelY >= textScaler.scale(12) * 1.3 + 5) {
         lastLabelY = yy;
         label(
           canvas,
-          note.label,
+          line.label!,
           Offset(10, yy - textScaler.scale(12) * .6),
-          Color(gray),
+          line.color,
           maxWidth: math.max(1, left - 18),
         );
       }
@@ -335,7 +341,7 @@ class TunerStrip extends StatelessWidget {
   final MonitorController controller;
   @override
   Widget build(BuildContext context) => Semantics(
-    label: '偏差 ${controller.deviation.toStringAsFixed(1)} 音分',
+    label: context.l10n.graphDeviation(controller.deviation.toStringAsFixed(1)),
     child: SizedBox(
       height: controller.settings.showSpectrum ? 56 : 68,
       width: double.infinity,
@@ -364,34 +370,65 @@ class _TunerPainter extends CustomPainter {
     )..sort((a, b) => a.cents.compareTo(b.cents));
     canvas.save();
     canvas.clipRect(Offset.zero & size);
-    for (var i = 0; i < notes.length; i++) {
-      final note = notes[i];
-      final xx = x(note.cents);
-      canvas.drawLine(
-        Offset(xx, 12),
-        Offset(xx, 36),
-        Paint()
-          ..color = AppColors.muted
-          ..strokeWidth = 1,
+    if (scale.edo != null) {
+      final lines = visibleScaleLines(
+        scale,
+        center - halfWindow,
+        center + halfWindow,
+        minimumCentsSpacing: 2 * halfWindow / math.max(1, size.width - 24) * 4,
       );
-      final text = TextPainter(
-        text: TextSpan(
-          text: note.label,
-          style: const TextStyle(color: AppColors.muted, fontSize: 11),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      text.paint(canvas, Offset(xx - text.width / 2, 43));
-      if (i + 1 < notes.length) {
-        for (var subdivision = 1; subdivision < 6; subdivision++) {
-          final xx = x(
-            note.cents + (notes[i + 1].cents - note.cents) * subdivision / 6,
-          );
-          canvas.drawLine(
-            Offset(xx, 23),
-            Offset(xx, 35),
-            Paint()..color = AppColors.line,
-          );
+      var lastLabelRight = double.negativeInfinity;
+      for (final line in lines) {
+        final xx = x(line.cents);
+        canvas.drawLine(
+          Offset(xx, 36 - 24 * line.ratio),
+          Offset(xx, 36),
+          Paint()
+            ..color = line.color.withValues(alpha: 184 / 255 * line.ratio)
+            ..strokeWidth = line.isAnchor ? 1.4 : 1,
+        );
+        final text = TextPainter(
+          text: TextSpan(
+            text: scale.nearestNote(line.cents).label,
+            style: TextStyle(color: line.color, fontSize: 11),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final left = xx - text.width / 2;
+        if (left < lastLabelRight + 6) continue;
+        text.paint(canvas, Offset(left, 43));
+        lastLabelRight = left + text.width;
+      }
+    } else {
+      for (var i = 0; i < notes.length; i++) {
+        final note = notes[i];
+        final xx = x(note.cents);
+        canvas.drawLine(
+          Offset(xx, 12),
+          Offset(xx, 36),
+          Paint()
+            ..color = AppColors.muted
+            ..strokeWidth = 1,
+        );
+        final text = TextPainter(
+          text: TextSpan(
+            text: note.label,
+            style: const TextStyle(color: AppColors.muted, fontSize: 11),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        text.paint(canvas, Offset(xx - text.width / 2, 43));
+        if (i + 1 < notes.length) {
+          for (var subdivision = 1; subdivision < 6; subdivision++) {
+            final xx = x(
+              note.cents + (notes[i + 1].cents - note.cents) * subdivision / 6,
+            );
+            canvas.drawLine(
+              Offset(xx, 23),
+              Offset(xx, 35),
+              Paint()..color = AppColors.line,
+            );
+          }
         }
       }
     }

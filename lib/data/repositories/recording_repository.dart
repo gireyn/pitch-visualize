@@ -1,4 +1,6 @@
 import 'dart:io';
+
+import '../../domain/models/app_exception.dart';
 import '../../domain/models/wave_data.dart';
 import '../services/platform_service.dart';
 
@@ -13,9 +15,9 @@ class RecordingRepository {
   RecordingRepository(this.platform);
   final PlatformService platform;
   Directory? _directory;
-  Future<Directory> get directory async => _directory ??= await Directory(
-    await platform.getStorageDirectory(),
-  ).create(recursive: true);
+  Future<Directory> get directory async =>
+      _directory ??= await Directory(await platform.getStorageDirectory())
+          .create(recursive: true);
 
   Future<List<RecordingEntry>> list() async {
     final entries = <RecordingEntry>[];
@@ -67,7 +69,10 @@ class RecordingRepository {
   Future<WaveData> load(RecordingEntry entry) async {
     final file = await _checkedFile(entry);
     if (await file.length() > WaveData.maxFileBytes) {
-      throw const FormatException('WAV 超过 64 MB');
+      throw const AppFormatException(
+        AppFormatError.wavTooLarge,
+        'WAV file exceeds 64 MB',
+      );
     }
     return WaveData.decode(await file.readAsBytes());
   }
@@ -79,7 +84,7 @@ class RecordingRepository {
     final file = File(entry.path);
     if (file.parent.absolute.path != folder.absolute.path ||
         await FileSystemEntity.isLink(entry.path)) {
-      throw const FileSystemException('无效的录音路径');
+      throw const InvalidRecordingPathException();
     }
     return file;
   }

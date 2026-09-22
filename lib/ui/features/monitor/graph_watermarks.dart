@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../l10n/l10n.dart';
 import '../../core/app_theme.dart';
 
 class GraphWatermarks extends StatelessWidget {
@@ -27,9 +28,16 @@ class GraphWatermarks extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         child: Row(
           children: [
-            Expanded(child: Text(scaleName, semanticsLabel: '当前调律：$scaleName')),
+            Expanded(
+              child: Text(
+                context.l10n.scaleName(scaleName),
+                semanticsLabel: context.l10n.graphCurrentTuning(
+                  context.l10n.scaleName(scaleName),
+                ),
+              ),
+            ),
             const SizedBox(width: 16),
-            Text('$bpm BPM', semanticsLabel: '速度：每分钟 $bpm 拍'),
+            Text('$bpm BPM', semanticsLabel: context.l10n.graphTempo(bpm)),
           ],
         ),
       ),

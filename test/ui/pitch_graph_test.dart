@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pitch_visual/l10n/l10n.dart';
 import 'package:pitch_visual/data/repositories/recording_repository.dart';
 import 'package:pitch_visual/data/repositories/settings_repository.dart';
 import 'package:pitch_visual/domain/models/monitor_settings.dart';
@@ -15,6 +16,8 @@ import 'package:pitch_visual/ui/features/monitor/monitor_controller.dart';
 import 'package:pitch_visual/ui/features/monitor/pitch_graph.dart';
 
 import '../data/fakes.dart';
+
+typedef _Stroke = ({Offset start, Offset end, Color color});
 
 class _PreviewController extends MonitorController {
   _PreviewController(FakePlatformService platform, FakePitchWorker worker)
@@ -46,6 +49,32 @@ class _PlotCanvas extends Fake implements Canvas {
   late Rect plot;
   final dots = <Offset>[];
   final labels = <Rect>[];
+  final strokes = <_Stroke>[];
+
+  List<_Stroke> get scaleLines =>
+      strokes
+          .where(
+            (line) =>
+                line.start.dy == line.end.dy &&
+                line.start.dx == plot.left &&
+                line.end.dx == plot.right,
+          )
+          .toList()
+        ..sort((a, b) => b.start.dy.compareTo(a.start.dy));
+
+  List<_Stroke> get ticks => strokes
+      .where(
+        (line) =>
+            line.start.dy == line.end.dy &&
+            line.start.dx == plot.left &&
+            line.end.dx > plot.left &&
+            line.end.dx < plot.right,
+      )
+      .toList();
+
+  @override
+  void drawLine(Offset p1, Offset p2, Paint paint) =>
+      strokes.add((start: p1, end: p2, color: paint.color));
 
   @override
   void clipRect(
@@ -95,6 +124,9 @@ void main() {
     double textScale = 1,
   }) => tester.pumpWidget(
     MaterialApp(
+      locale: const Locale('zh'),
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
       theme: buildTheme(),
       home: MediaQuery(
         data: MediaQueryData(
@@ -134,6 +166,195 @@ void main() {
         .paint(canvas, tester.getSize(painter()));
     return canvas;
   }
+
+  Future<List<_Stroke>> paintTuner(WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('zh'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Center(
+          child: SizedBox(width: 375, child: TunerStrip(controller: model)),
+        ),
+      ),
+    );
+    final finder = find.descendant(
+      of: find.byType(TunerStrip),
+      matching: find.byType(CustomPaint),
+    );
+    final canvas = _PlotCanvas();
+    tester
+        .widget<CustomPaint>(finder)
+        .painter!
+        .paint(canvas, tester.getSize(finder));
+    return canvas.strokes
+        .where(
+          (line) =>
+              line.start.dx == line.end.dx &&
+              line.end.dy == 36 &&
+              line.start.dx >= 0 &&
+              line.start.dx <= 375 &&
+              line.color.toARGB32() != AppColors.accent.toARGB32(),
+        )
+        .toList();
+  }
+
+  for (final edo in [12, 31]) {
+    testWidgets(
+      '$edo EDO tuner uses the same note positions and graded ticks',
+      (tester) async {
+        model.scale = ScaleConfig.equalDivision(edo);
+        model.centerCents = 3600;
+        final ticks = await paintTuner(tester);
+        final stepsEachSide = edo == 12 ? 1 : 4;
+        expect(ticks, hasLength(stepsEachSide * 2 + 1));
+        for (var i = 0; i < ticks.length; i++) {
+          final centsFromC4 = (i - stepsEachSide) * 1200 / edo;
+          expect(
+            ticks[i].start.dx,
+            closeTo(187.5 + centsFromC4 / (1200 / 7) * 175.5, .001),
+          );
+        }
+        final anchor = ticks[stepsEachSide];
+        expect(anchor.end.dy - anchor.start.dy, closeTo(24, .001));
+        expect(ticks.last.end.dy - ticks.last.start.dy, lessThan(24));
+        expect(ticks.last.color.a, lessThan(anchor.color.a));
+      },
+    );
+  }
+
+  testWidgets(
+    'tuner keeps irregular file pitches when the EDO setting changes',
+    (tester) async {
+      model.scale = ScaleConfig.parse(
+        'A4: 261.6255653005986\n0c 130c 700c 1900c\nA B D',
+        'Custom period',
+      );
+      model.centerCents = 3600;
+      final before = await paintTuner(tester);
+      expect(before, hasLength(2));
+      expect(before.first.start.dx, closeTo(187.5, .001));
+      expect(
+        before.last.start.dx,
+        closeTo(187.5 + 130 / (1200 / 7) * 175.5, .001),
+      );
+      expect(before.every((line) => line.end.dy - line.start.dy == 24), isTrue);
+
+      await tester.runAsync(() => model.updateSetting('edo', 31));
+      expect(await paintTuner(tester), before);
+    },
+  );
+
+  for (final edo in [12, 31]) {
+    testWidgets(
+      '$edo EDO aligns the pitch grid and graded ticks with C4 to C5',
+      (tester) async {
+        model.scale = ScaleConfig.equalDivision(edo);
+        model.showRange(4200, 1200);
+        await mount(tester, reduceMotion: true);
+        final canvas = paint(tester);
+        final lines = canvas.scaleLines;
+
+        expect(lines, hasLength(edo + 1));
+        for (var i = 0; i <= edo; i++) {
+          expect(
+            lines[i].start.dy,
+            closeTo(canvas.plot.bottom - i / edo * canvas.plot.height, .001),
+          );
+        }
+        expect(canvas.ticks, hasLength(edo + 1));
+        final anchor = canvas.ticks.singleWhere(
+          (line) => (line.start.dy - canvas.plot.bottom).abs() < .001,
+        );
+        final degree = canvas.ticks.singleWhere(
+          (line) => (line.start.dy - lines[1].start.dy).abs() < .001,
+        );
+        expect(anchor.end.dx - anchor.start.dx, closeTo(20, .001));
+        expect(
+          degree.end.dx - degree.start.dx,
+          lessThan(anchor.end.dx - anchor.start.dx),
+        );
+        expect(degree.color.a, lessThan(anchor.color.a));
+      },
+    );
+  }
+
+  testWidgets('0 EDO paints only octave guides in pitch history', (
+    tester,
+  ) async {
+    model.scale = ScaleConfig.equalDivision(0);
+    model.showRange(4200, 1200);
+    await mount(tester, reduceMotion: true);
+    final canvas = paint(tester);
+
+    expect(canvas.scaleLines, hasLength(2));
+    expect(canvas.ticks, hasLength(2));
+    expect(canvas.scaleLines.first.start.dy, closeTo(canvas.plot.bottom, .001));
+    expect(canvas.scaleLines.last.start.dy, closeTo(canvas.plot.top, .001));
+  });
+
+  testWidgets('dense EDO pitch history avoids painting every fine division', (
+    tester,
+  ) async {
+    model.scale = ScaleConfig.equalDivision(72);
+    model.showRange(4800, 9600);
+    await mount(
+      tester,
+      reduceMotion: true,
+      size: const Size(740, 260),
+      textScale: 2,
+    );
+    final canvas = paint(tester);
+
+    expect(canvas.scaleLines.length, lessThan(72 * 8 ~/ 2));
+    for (var octave = 0; octave <= 8; octave++) {
+      final y = canvas.plot.bottom - octave / 8 * canvas.plot.height;
+      expect(
+        canvas.scaleLines.map((line) => line.start.dy),
+        contains(closeTo(y, .001)),
+      );
+    }
+    for (var i = 1; i < canvas.labels.length; i++) {
+      expect(
+        canvas.labels[i].top,
+        greaterThanOrEqualTo(canvas.labels[i - 1].bottom),
+      );
+    }
+  });
+
+  testWidgets('changing EDO preserves an imported non-octave pitch grid', (
+    tester,
+  ) async {
+    model.scale = ScaleConfig.parse(
+      'A4: 261.6255653005986\n0c 250c 700c 1900c\nA B D\n220 90 150',
+      'Custom period',
+    );
+    model.showRange(4700, 2400);
+    await mount(tester, reduceMotion: true);
+    final before = paint(tester);
+    const cents = [3600, 3850, 4300, 5500, 5750];
+    expect(before.scaleLines, hasLength(cents.length));
+    for (var i = 0; i < cents.length; i++) {
+      expect(
+        before.scaleLines[i].start.dy,
+        closeTo(
+          before.plot.bottom - (cents[i] - 3500) / 2400 * before.plot.height,
+          .001,
+        ),
+      );
+    }
+    expect(before.ticks, isEmpty);
+    expect(before.scaleLines.first.color.r, closeTo(220 / 255, .001));
+    expect(before.scaleLines[1].color.r, closeTo(90 / 255, .001));
+
+    await tester.runAsync(() => model.updateSetting('edo', 31));
+    await tester.pumpAndSettle();
+    final after = paint(tester);
+    expect(model.settings.edo, 31);
+    expect(model.scale!.edo, isNull);
+    expect(after.scaleLines, before.scaleLines);
+    expect(after.ticks, isEmpty);
+  });
 
   testWidgets('axis and old notes move continuously during expansion', (
     tester,

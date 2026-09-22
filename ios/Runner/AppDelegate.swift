@@ -80,7 +80,8 @@ private final class PitchPlatformPlugin: NSObject, FlutterPlugin, FlutterStreamH
       default: result(FlutterMethodNotImplemented)
       }
     } catch {
-      result(FlutterError(code: "platformError", message: error.localizedDescription, details: nil))
+      let code = call.method == "play" ? "playback" : "platformError"
+      result(FlutterError(code: code, message: error.localizedDescription, details: nil))
     }
   }
 
@@ -225,13 +226,13 @@ private final class PitchPlatformPlugin: NSObject, FlutterPlugin, FlutterStreamH
   func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
     guard self.player === player else { return }
     stopPlayback()
-    emit(flag ? "playbackComplete" : "error", message: flag ? nil : "Audio playback failed.")
+    emit(flag ? "playbackComplete" : "error", message: flag ? nil : "Audio playback failed.", code: flag ? nil : "playback")
   }
 
   func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
     guard self.player === player else { return }
     stopPlayback()
-    emit("error", message: error?.localizedDescription ?? "Could not decode the recording.")
+    emit("error", message: error?.localizedDescription ?? "Could not decode the recording.", code: "playback")
   }
 
   private func storageDirectory() throws -> URL {
@@ -330,11 +331,12 @@ private final class PitchPlatformPlugin: NSObject, FlutterPlugin, FlutterStreamH
     if interrupted { emit("interrupted", message: "Audio was interrupted. Resume when ready.", reason: reason, positionMs: position) }
   }
 
-  private func emit(_ type: String, message: String? = nil, reason: String? = nil, positionMs: Int? = nil) {
+  private func emit(_ type: String, message: String? = nil, reason: String? = nil, positionMs: Int? = nil, code: String? = nil) {
     var event: [String: Any] = ["type": type]
     if let message { event["message"] = message }
     if let reason { event["reason"] = reason }
     if let positionMs { event["positionMs"] = positionMs }
+    if let code { event["code"] = code }
     eventSink?(event)
   }
 

@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../../domain/models/monitor_settings.dart';
+import '../../../l10n/l10n.dart';
 import 'monitor_controller.dart';
 
 class PitchRangeTween extends Tween<RangeValues> {
@@ -84,7 +85,7 @@ class _PitchRangeGestureState extends State<PitchRangeGesture> {
       double pitchFraction(double y) =>
           .5 - (y - widget.plotPadding.top) / height;
       return Semantics(
-        hint: '双指竖直拉开放大、捏合缩小，上下拖动调整音域；手动调整后暂停自动跟随。',
+        hint: context.l10n.graphPitchRangeHint,
         child: Listener(
           onPointerDown: (event) => _pointers.add(event.pointer),
           onPointerUp: _pointerEnded,

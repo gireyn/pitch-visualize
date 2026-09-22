@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../models/app_exception.dart';
 import 'math_eval.dart';
 
 /// A named degree of a tuning at a particular register.
@@ -31,6 +32,7 @@ class ScaleConfig {
     required this.referenceName,
     required this.referenceIndex,
     required this.source,
+    this.edo,
     List<int>? colors,
   }) : names = List.unmodifiable(names),
        cents = List.unmodifiable(cents),
@@ -46,12 +48,55 @@ class ScaleConfig {
   final int referenceIndex;
   final List<int>? colors;
 
-  /// Original imported text; empty for a restored legacy cache payload.
+  /// Null for a tuning file; otherwise the active equal-division grid.
+  /// Zero draws octave guides only.
+  final int? edo;
+
+  /// Original imported text; empty for EDO or a restored legacy cache payload.
   final String source;
 
   static const c1Frequency = 32.70319566257483;
   static final _whitespace = RegExp(r'\s+');
   static final _standardName = RegExp(r'^[a-gA-G][0-9#♯b♭x]*$');
+
+  factory ScaleConfig.equalDivision(int edo) {
+    RangeError.checkValueInInterval(edo, 0, 72, 'edo');
+    final divisions = math.max(1, edo);
+    final names = edo == 12
+        ? const [
+            'C',
+            'C♯',
+            'D',
+            'D♯',
+            'E',
+            'F',
+            'F♯',
+            'G',
+            'G♯',
+            'A',
+            'A♯',
+            'B',
+          ]
+        : List<String>.generate(
+            divisions,
+            (index) => index == 0 ? 'C' : '$index/$divisions·',
+          );
+    return ScaleConfig._(
+      name: edo == 0 ? '八度刻度' : '$edo EDO',
+      names: names,
+      cents: List<double>.generate(
+        divisions,
+        (index) => 1200 * index / divisions,
+      ),
+      periodCents: 1200,
+      referenceFrequency: c1Frequency * 8,
+      referenceOctave: 4,
+      referenceName: 'C',
+      referenceIndex: 0,
+      source: '',
+      edo: edo,
+    );
+  }
 
   /// Absolute cents of the nominal zero at the reference register.
   double get baseCents =>
@@ -61,7 +106,10 @@ class ScaleConfig {
   /// Parses a config or throws [FormatException] with an import diagnostic.
   static ScaleConfig parse(String text, String displayName) {
     if (text.length > 1024 * 1024) {
-      throw const FormatException('Tuning config is larger than 1 MB');
+      throw const AppFormatException(
+        AppFormatError.tuningTooLarge,
+        'Tuning config is larger than 1 MB',
+      );
     }
     var normalized = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
     if (normalized.startsWith('\uFEFF')) normalized = normalized.substring(1);
@@ -71,19 +119,27 @@ class ScaleConfig {
         .where((line) => line.isNotEmpty)
         .toList();
     if (lines.length < 2) {
-      throw const FormatException(
+      throw const AppFormatException(
+        AppFormatError.tuningMissingLines,
         'Need at least a reference note line and a pitch line',
       );
     }
     final colon = lines.first.indexOf(':');
     if (colon < 0) {
-      throw const FormatException('Reference note must look like "甲4: 320"');
+      throw const AppFormatException(
+        AppFormatError.tuningInvalidReference,
+        'Reference note must look like "C4: 261.63"',
+      );
     }
     final refSpec = lines.first.substring(0, colon).trim();
     final freqText = lines.first.substring(colon + 1).trim();
     final frequency = MathEval.eval(freqText);
     if (!frequency.isFinite || frequency <= 0) {
-      throw FormatException('Invalid reference frequency: $freqText');
+      throw AppFormatException(
+        AppFormatError.tuningInvalidFrequency,
+        'Invalid reference frequency: $freqText',
+        detail: freqText,
+      );
     }
     final registerMatch = RegExp(r'\d+$').firstMatch(refSpec);
     final register = registerMatch == null
@@ -94,22 +150,35 @@ class ScaleConfig {
         : refSpec.substring(0, registerMatch.start);
     final pitchTokens = lines[1].split(_whitespace);
     if (pitchTokens.length < 2) {
-      throw const FormatException(
+      throw const AppFormatException(
+        AppFormatError.tuningMissingPitch,
         'Need at least one scale pitch and an equave',
       );
     }
     if (pitchTokens.length > 4097) {
-      throw const FormatException('A tuning can contain at most 4096 notes');
+      throw const AppFormatException(
+        AppFormatError.tuningTooManyNotes,
+        'A tuning can contain at most 4096 notes',
+      );
     }
     final pitches = <double>[];
     for (final token in pitchTokens) {
       final value = parseCentsOrRatio(token);
-      if (value == null) throw FormatException('Cannot parse pitch: $token');
+      if (value == null) {
+        throw AppFormatException(
+          AppFormatError.tuningInvalidPitch,
+          'Cannot parse pitch: $token',
+          detail: token,
+        );
+      }
       pitches.add(value);
     }
     final period = pitches.removeLast();
     if (period == 0) {
-      throw const FormatException('Equave size must be non-zero');
+      throw const AppFormatException(
+        AppFormatError.tuningZeroEquave,
+        'Equave size must be non-zero',
+      );
     }
     var namesEnd = lines.length;
     List<int>? colors;
@@ -139,7 +208,11 @@ class ScaleConfig {
       referenceIndex = 0;
     }
     if (referenceIndex < 0) {
-      throw FormatException('Reference note "$refName" is not a scale note');
+      throw AppFormatException(
+        AppFormatError.tuningReferenceNotFound,
+        'Reference note "$refName" is not a scale note',
+        detail: refName,
+      );
     }
     return ScaleConfig._(
       name: displayName,

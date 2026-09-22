@@ -8,6 +8,7 @@ import '../../../domain/audio/log_spectrum.dart';
 import '../../../domain/audio/pitch_analyzer.dart';
 import '../../../domain/models/monitor_settings.dart';
 import '../../../domain/tuning/scale_config.dart';
+import '../../../l10n/l10n.dart';
 import '../../core/app_theme.dart';
 import 'graph_watermarks.dart';
 import 'monitor_controller.dart';
@@ -75,15 +76,15 @@ class _SpectrumGraphState extends State<SpectrumGraph> {
     final scale = controller.scale;
     if (scale == null) return const Center(child: CircularProgressIndicator());
     // Keep sampling and label widths anchored while the viewport moves.
-    final notes = visibleScaleNotes(
+    final lines = visibleScaleLines(
       scale,
       LogSpectrum.minCents,
       LogSpectrum.maxCents,
     );
     return Semantics(
-      label:
-          'FFT 滚动频谱。纵轴为对数频率，以${scale.name}音高名标注，每个八度等高。'
-          '横轴为时间，颜色从暗蓝到橙黄到白表示负90至0 dBFS。',
+      label: context.l10n.graphSpectrumDescription(
+        context.l10n.scaleName(scale.name),
+      ),
       child: ColoredBox(
         color: SpectrumPalette.background,
         child: Column(
@@ -100,12 +101,15 @@ class _SpectrumGraphState extends State<SpectrumGraph> {
                 spacing: 16,
                 runSpacing: 4,
                 children: [
-                  const Text(
-                    'FFT · 音高 / log₂',
-                    style: TextStyle(color: AppColors.muted, fontSize: 12),
+                  Text(
+                    context.l10n.graphSpectrumAxis,
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                    ),
                   ),
                   Semantics(
-                    label: '频谱强度：负90至0 dBFS',
+                    label: context.l10n.graphSpectrumIntensity,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -170,7 +174,8 @@ class _SpectrumGraphState extends State<SpectrumGraph> {
                               builder: (context, viewport, _) => CustomPaint(
                                 painter: _SpectrumPainter(
                                   tiles: _tiles.values.toList(),
-                                  notes: notes,
+                                  scale: scale,
+                                  lines: lines,
                                   settings: controller.settings,
                                   time: controller.graphTime,
                                   seconds: controller.graphSeconds,
@@ -186,14 +191,19 @@ class _SpectrumGraphState extends State<SpectrumGraph> {
                         ),
                       ),
                       if (controller.spectra.isEmpty)
-                        const IgnorePointer(
+                        IgnorePointer(
                           child: Center(
                             child: Padding(
-                              padding: EdgeInsets.fromLTRB(64, 24, 24, 24),
+                              padding: const EdgeInsets.fromLTRB(
+                                64,
+                                24,
+                                24,
+                                24,
+                              ),
                               child: Text(
-                                '开始监听，观察基频与泛音\n每个八度等高 · 亮度表示强度',
+                                context.l10n.graphSpectrumEmpty,
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   color: AppColors.muted,
                                   height: 1.8,
                                 ),
@@ -209,10 +219,11 @@ class _SpectrumGraphState extends State<SpectrumGraph> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (controller.held) const Chip(label: Text('已冻结')),
+                            if (controller.held)
+                              Chip(label: Text(context.l10n.graphFrozen)),
                             if (!controller.settings.autoScroll) ...[
                               IconButton.filledTonal(
-                                tooltip: '恢复自动跟随音域',
+                                tooltip: context.l10n.graphResumeAutoFollow,
                                 onPressed: () => controller.updateSetting(
                                   'autoScroll',
                                   true,
@@ -221,13 +232,13 @@ class _SpectrumGraphState extends State<SpectrumGraph> {
                               ),
                               const SizedBox(width: 4),
                               IconButton.filledTonal(
-                                tooltip: '音域上移',
+                                tooltip: context.l10n.graphRangeUp,
                                 onPressed: () => controller.panRange(300),
                                 icon: const Icon(Icons.keyboard_arrow_up),
                               ),
                               const SizedBox(width: 4),
                               IconButton.filledTonal(
-                                tooltip: '音域下移',
+                                tooltip: context.l10n.graphRangeDown,
                                 onPressed: () => controller.panRange(-300),
                                 icon: const Icon(Icons.keyboard_arrow_down),
                               ),
@@ -301,7 +312,8 @@ class _SpectrumTile {
 class _SpectrumPainter extends CustomPainter {
   _SpectrumPainter({
     required this.tiles,
-    required this.notes,
+    required this.scale,
+    required this.lines,
     required this.settings,
     required this.time,
     required this.seconds,
@@ -310,7 +322,8 @@ class _SpectrumPainter extends CustomPainter {
     required this.labelStyle,
   });
   final List<_SpectrumTile> tiles;
-  final List<ScaleNote> notes;
+  final ScaleConfig scale;
+  final List<ScaleGridLine> lines;
   final MonitorSettings settings;
   final double time, seconds;
   final RangeValues viewport;
@@ -336,8 +349,9 @@ class _SpectrumPainter extends CustomPainter {
     final range = max - min;
     final labelHeight = textScaler.scale(12) * 1.3;
     var left = 42.0;
-    for (final note in notes) {
-      final text = _text(note.label)..layout();
+    for (final line in lines) {
+      if (line.label == null) continue;
+      final text = _text(line.label!)..layout();
       left = math.max(left, text.width + 16);
     }
     left = math.min(left, size.width * .3);
@@ -412,21 +426,26 @@ class _SpectrumPainter extends CustomPainter {
 
     // Cull labels from a fixed spectrum-wide anchor before clipping, so a note
     // crossing the viewport edge cannot reshuffle the remaining labels.
+    final edo = scale.edo != null;
+    final gridLines = edo
+        ? visibleScaleLines(
+            scale,
+            LogSpectrum.minCents,
+            LogSpectrum.maxCents,
+            minimumCentsSpacing: range / plot.height * 4,
+          )
+        : lines;
     var lastLabelY = double.negativeInfinity;
-    for (final note in notes.reversed) {
-      final yy = y(note.cents);
-      final showLabel = yy - lastLabelY >= labelHeight + 5;
+    for (final line in gridLines.reversed) {
+      final yy = y(line.cents);
+      final showLabel =
+          line.label != null && yy - lastLabelY >= labelHeight + 5;
       if (showLabel) lastLabelY = yy;
-      if (note.cents < min || note.cents > max) continue;
-      canvas.drawLine(
-        Offset(plot.left, yy),
-        Offset(plot.right, yy),
-        Paint()
-          ..color = AppColors.muted.withValues(alpha: .16)
-          ..strokeWidth = .6,
-      );
+      if (line.cents < min || line.cents > max) continue;
+      drawScaleGridLine(canvas, plot, yy, line, edo: edo, spectrum: true);
       if (!showLabel) continue;
-      final text = _text(note.label)..layout(maxWidth: math.max(1, left - 12));
+      final text = _text(line.label!, color: line.color)
+        ..layout(maxWidth: math.max(1, left - 12));
       text.paint(
         canvas,
         Offset(plot.left - text.width - 8, yy - text.height / 2),

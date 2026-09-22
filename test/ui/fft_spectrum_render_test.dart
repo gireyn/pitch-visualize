@@ -35,6 +35,8 @@ void main() {
   testWidgets('real FFT harmonics render and the graph mode can be switched', (
     tester,
   ) async {
+    tester.platformDispatcher.localesTestValue = const [Locale('zh')];
+    addTearDown(tester.platformDispatcher.clearLocalesTestValue);
     const preview = String.fromEnvironment('SPECTRUM_PREVIEW_PATH');
     if (preview.isNotEmpty) {
       // Optional local preview fonts; normal CI remains platform independent.

@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pitch_visual/l10n/l10n.dart';
 import 'package:pitch_visual/data/repositories/recording_repository.dart';
 import 'package:pitch_visual/data/repositories/settings_repository.dart';
 import 'package:pitch_visual/domain/models/monitor_settings.dart';
@@ -11,17 +12,35 @@ import 'package:pitch_visual/ui/features/monitor/spectrum_graph.dart';
 
 import '../data/fakes.dart';
 
+typedef _Stroke = ({Offset start, Offset end, Color color});
+
 class _PlotCanvas extends Fake implements Canvas {
   late Rect plot;
   final grid = <Offset>[];
   final labels = <double>[];
+  final strokes = <_Stroke>[];
+
+  List<_Stroke> get scaleLines =>
+      strokes
+          .where(
+            (line) => line.start.dx == plot.left && line.end.dx == plot.right,
+          )
+          .toList()
+        ..sort((a, b) => b.start.dy.compareTo(a.start.dy));
+
+  List<_Stroke> get ticks => strokes
+      .where((line) => line.start.dx == plot.left && line.end.dx < plot.right)
+      .toList();
 
   @override
   void drawRect(Rect rect, Paint paint) => plot = rect;
 
   @override
   void drawLine(Offset p1, Offset p2, Paint paint) {
-    if (p1.dy == p2.dy) grid.add(p1);
+    if (p1.dy == p2.dy) {
+      grid.add(p1);
+      strokes.add((start: p1, end: p2, color: paint.color));
+    }
   }
 
   @override
@@ -66,6 +85,9 @@ void main() {
     double textScale = 1,
   }) => tester.pumpWidget(
     MaterialApp(
+      locale: const Locale('zh'),
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
       home: MediaQuery(
         data: MediaQueryData(
           disableAnimations: reduceMotion,
@@ -107,6 +129,102 @@ void main() {
             canvas.plot.height *
             range;
   }
+
+  for (final edo in [12, 31]) {
+    testWidgets(
+      '$edo EDO paints equally spaced notes and emphasized octave ticks',
+      (tester) async {
+        model.scale = ScaleConfig.equalDivision(edo);
+        model.settings = MonitorSettings(
+          edo: edo,
+          verticalZoom: 8,
+          showBeats: false,
+        );
+        model.centerCents = 4200;
+        await mount(tester, reduceMotion: true, size: const Size(375, 550));
+        final canvas = paint(tester);
+        final lines = canvas.scaleLines;
+
+        expect(lines, hasLength(edo + 1));
+        for (var i = 0; i <= edo; i++) {
+          expect(
+            lines[i].start.dy,
+            closeTo(canvas.plot.bottom - i / edo * canvas.plot.height, .001),
+          );
+        }
+        expect(canvas.ticks, hasLength(edo + 1));
+        final anchor = canvas.ticks.singleWhere(
+          (line) => (line.start.dy - canvas.plot.bottom).abs() < .001,
+        );
+        final degree = canvas.ticks.singleWhere(
+          (line) => (line.start.dy - lines[1].start.dy).abs() < .001,
+        );
+        expect(anchor.end.dx - anchor.start.dx, closeTo(20, .001));
+        expect(
+          degree.end.dx - degree.start.dx,
+          lessThan(anchor.end.dx - anchor.start.dx),
+        );
+        expect(degree.color.a, lessThan(anchor.color.a));
+      },
+    );
+  }
+
+  testWidgets('0 EDO paints octave guides with no intermediate degrees', (
+    tester,
+  ) async {
+    model.scale = ScaleConfig.equalDivision(0);
+    await mount(tester, reduceMotion: true);
+    final canvas = paint(tester);
+
+    expect(canvas.scaleLines, hasLength(5));
+    expect(canvas.ticks, hasLength(5));
+    for (var i = 0; i < 5; i++) {
+      expect(
+        canvas.scaleLines[i].start.dy,
+        closeTo(canvas.plot.bottom - i / 4 * canvas.plot.height, .001),
+      );
+    }
+  });
+
+  testWidgets(
+    'changing EDO keeps an imported non-octave spectrum grid and colors',
+    (tester) async {
+      model.scale = ScaleConfig.parse(
+        'A4: 261.6255653005986\n0c 250c 700c 1900c\nA B D\n220 90 150',
+        'Custom period',
+      );
+      model.settings = const MonitorSettings(
+        edo: 12,
+        verticalZoom: 2,
+        showBeats: false,
+      );
+      model.centerCents = 4800;
+      await mount(tester, reduceMotion: true);
+      final before = paint(tester);
+      const cents = [2400, 3600, 3850, 4300, 5500, 5750, 6200];
+      expect(before.scaleLines, hasLength(cents.length));
+      for (var i = 0; i < cents.length; i++) {
+        expect(
+          before.scaleLines[i].start.dy,
+          closeTo(
+            before.plot.bottom - (cents[i] - 2400) / 4800 * before.plot.height,
+            .001,
+          ),
+        );
+      }
+      expect(before.ticks, isEmpty);
+      expect(before.scaleLines[1].color.r, closeTo(220 / 255, .001));
+      expect(before.scaleLines[2].color.r, closeTo(90 / 255, .001));
+
+      await tester.runAsync(() => model.updateSetting('edo', 31));
+      await tester.pumpAndSettle();
+      final after = paint(tester);
+      expect(model.settings.edo, 31);
+      expect(model.scale!.edo, isNull);
+      expect(after.scaleLines, before.scaleLines);
+      expect(after.ticks, isEmpty);
+    },
+  );
 
   testWidgets('range changes scroll through intermediate painted positions', (
     tester,

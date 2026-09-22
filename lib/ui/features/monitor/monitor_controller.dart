@@ -11,9 +11,12 @@ import '../../../data/services/platform_service.dart';
 import '../../../domain/audio/pitch_worker.dart';
 import '../../../domain/audio/log_spectrum.dart';
 import '../../../domain/models/monitor_settings.dart';
+import '../../../domain/models/app_exception.dart';
 import '../../../domain/models/wave_data.dart';
 import '../../../domain/pitch_math.dart';
 import '../../../domain/tuning/scale_config.dart';
+import '../../../l10n/app_message.dart';
+import '../../../l10n/l10n.dart';
 import 'history_viewport.dart';
 
 enum MonitorMode { idle, listening, recording, playing, paused }
@@ -40,7 +43,7 @@ class MonitorController extends ChangeNotifier {
   ScaleConfig? scale;
   MonitorMode mode = MonitorMode.idle;
   bool initialized = false, busy = false, held = false;
-  String? message;
+  AppMessage? message;
   double frequency = 0, level = 0, currentTime = 0, centerCents = 3600;
   ScaleNote? note;
   double deviation = 0;
@@ -146,7 +149,7 @@ class MonitorController extends ChangeNotifier {
   }
 
   void _report(Object error) {
-    message = error.toString().replaceFirst('FormatException: ', '');
+    message = AppMessage.error(error);
     _notify();
   }
 
@@ -231,7 +234,8 @@ class MonitorController extends ChangeNotifier {
     _playbackWave = wave;
     _playbackOffsetMs = 0;
     recordings = await recordingRepository.list();
-    message = '录音已保存：${selectedRecording!.name}';
+    final name = selectedRecording!.name;
+    message = AppMessage((strings) => strings.noticeRecordingSaved(name));
   }
 
   Future<void> stop() {
@@ -260,7 +264,7 @@ class MonitorController extends ChangeNotifier {
     }
   }
 
-  void _stopWithMessage(String reason) {
+  void _stopWithMessage(AppMessage reason) {
     _resumeCapture = false;
     unawaited(
       _run(() async {
@@ -347,14 +351,19 @@ class MonitorController extends ChangeNotifier {
       _playbackWave = wave;
       _playbackOffsetMs = 0;
     }
-    message = '已导入 ${entry.name}';
+    message = AppMessage(
+      (strings) => strings.noticeRecordingImported(entry.name),
+    );
   });
 
   Future<void> importScale() => _run(() async {
     final file = await platform.pickFile('tuning');
     if (file == null) return;
     if (file.bytes.length > 1024 * 1024) {
-      throw const FormatException('调律文件不能超过 1 MB');
+      throw const AppFormatException(
+        AppFormatError.tuningTooLarge,
+        'Tuning file exceeds 1 MB',
+      );
     }
     final next = ScaleConfig.parse(
       utf8.decode(file.bytes),
@@ -368,18 +377,29 @@ class MonitorController extends ChangeNotifier {
   Future<void> useBundledScale(bool tiangan) => _run(
     () async => _applyScale(await settingsRepository.bundledScale(tiangan)),
   );
+  Future<void> useEdoScale() =>
+      _run(() async => _applyScale(ScaleConfig.equalDivision(settings.edo)));
   Future<void> _applyScale(ScaleConfig next) async {
     await settingsRepository.save(settings, next);
     scale = next;
     centerCents = next.noteAt(0, next.referenceOctave).cents;
     _updateNote();
-    message = '已应用 ${next.name}';
+    message = AppMessage(
+      (strings) => strings.noticeScaleApplied(strings.scaleName(next.name)),
+    );
   }
 
   Future<void> updateSetting(String key, Object value) => _run(() async {
     final next = settings.withValue(key, value);
-    if (scale != null) await settingsRepository.save(next, scale!);
+    final nextScale = key == 'edo' && scale?.edo != null
+        ? ScaleConfig.equalDivision(next.edo)
+        : scale;
+    if (nextScale != null) await settingsRepository.save(next, nextScale);
     settings = next;
+    if (scale != nextScale) {
+      scale = nextScale;
+      _updateNote();
+    }
     if (key == 'showSpectrum' ||
         key == 'verticalZoom' ||
         (key == 'autoScroll' && settings.autoScroll)) {
@@ -521,7 +541,9 @@ class MonitorController extends ChangeNotifier {
         _worker.addPcm(data, rate);
         if (isRecording && _recordBuffer != null) {
           if (rate != _sampleRate) {
-            _stopWithMessage('音频设备已改变，录音已结束');
+            _stopWithMessage(
+              AppMessage((strings) => strings.noticeAudioDeviceChanged),
+            );
             return;
           }
           final remaining = WaveData.maxSeconds * rate * 2 - _recordedBytes;
@@ -558,15 +580,22 @@ class MonitorController extends ChangeNotifier {
           _playbackClock.stop();
           _worker.reset();
           mode = MonitorMode.paused;
-          message = '回放已被系统中断，点击播放可继续';
+          message = AppMessage((strings) => strings.noticePlaybackInterrupted);
           unawaited(platform.setKeepScreenOn(false));
           _notify();
         } else {
-          _stopWithMessage('音频已被系统中断，请点击开始继续');
+          _stopWithMessage(
+            AppMessage((strings) => strings.noticeAudioInterrupted),
+          );
         }
       case 'error':
         _interrupted = true;
-        _stopWithMessage(event['message'] as String? ?? '音频设备出错');
+        _stopWithMessage(
+          AppMessage.audioError(
+            code: event['code'] as String?,
+            details: event['message'] as String?,
+          ),
+        );
     }
   }
 

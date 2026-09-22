@@ -22,6 +22,7 @@ void main() {
       showHold: false,
       showScale: false,
       showTempo: false,
+      edo: 31,
       pitchColor: 0xff123456,
       beatColor: 0xff334455,
       metronomeColor: 0xff8899aa,
@@ -43,6 +44,7 @@ void main() {
       'key_tuner_smooth': 4,
       'key_bpm': 180,
       'key_meter': '3/4',
+      'key_edo': 19,
       'key_display_bpm': true,
       'key_display_metronome': true,
       'key_display_button_hold': false,
@@ -62,6 +64,7 @@ void main() {
     expect(settings.smoothing, 4);
     expect(settings.bpm, 180);
     expect(settings.beatsPerBar, 3);
+    expect(settings.edo, 19);
     expect(settings.showBeats, isTrue);
     expect(settings.flashBeat, isTrue);
     expect(settings.showHold, isFalse);
@@ -105,5 +108,14 @@ void main() {
       'bpm': 160,
     });
     expect(settings.bpm, 120);
+  });
+  test('EDO defaults and malformed preferences normalize to 0 through 72', () {
+    expect(const MonitorSettings().edo, 12);
+    for (final value in [null, 'bad', double.nan, double.infinity]) {
+      expect(MonitorSettings.fromJson({'edo': value}).edo, 12);
+    }
+    expect(MonitorSettings.fromJson({'edo': -3}).edo, 0);
+    expect(MonitorSettings.fromJson({'edo': 100}).edo, 72);
+    expect(MonitorSettings.fromJson({'edo': 19.8}).edo, 20);
   });
 }

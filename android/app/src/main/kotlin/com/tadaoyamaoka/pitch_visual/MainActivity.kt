@@ -115,7 +115,8 @@ class MainActivity : FlutterActivity(), MethodChannel.MethodCallHandler, EventCh
                 else -> result.notImplemented()
             }
         } catch (error: Exception) {
-            result.error("platformError", error.message ?: "Device operation failed.", null)
+            val code = if (call.method == "play") "playback" else "platformError"
+            result.error(code, error.message ?: "Device operation failed.", null)
         }
     }
 
@@ -174,7 +175,7 @@ class MainActivity : FlutterActivity(), MethodChannel.MethodCallHandler, EventCh
                             mainHandler.post {
                                 if (recorder === active) {
                                     stopCapture()
-                                    emit("error", "Microphone input stopped (code $count).")
+                                    emit("error", "Microphone input stopped (code $count).", code = "capture")
                                 }
                             }
                             break
@@ -184,7 +185,7 @@ class MainActivity : FlutterActivity(), MethodChannel.MethodCallHandler, EventCh
                     mainHandler.post {
                         if (recorder === active) {
                             recorder = null
-                            emit("error", error.message ?: "Microphone input stopped.")
+                            emit("error", error.message ?: "Microphone input stopped.", code = "capture")
                         }
                     }
                 } finally {
@@ -225,7 +226,7 @@ class MainActivity : FlutterActivity(), MethodChannel.MethodCallHandler, EventCh
                 if (player === it) { stopPlayback(); emit("playbackComplete") }
             }
             current.setOnErrorListener { failed, what, extra ->
-                if (player === failed) { stopPlayback(); emit("error", "Audio playback failed ($what/$extra).") }
+                if (player === failed) { stopPlayback(); emit("error", "Audio playback failed ($what/$extra).", code = "playback") }
                 true
             }
             current.prepare()
@@ -340,11 +341,12 @@ class MainActivity : FlutterActivity(), MethodChannel.MethodCallHandler, EventCh
         return mapOf("name" to name, "bytes" to bytes)
     }
 
-    private fun emit(type: String, message: String? = null, reason: String? = null, positionMs: Int? = null) {
+    private fun emit(type: String, message: String? = null, reason: String? = null, positionMs: Int? = null, code: String? = null) {
         val event = mutableMapOf<String, Any>("type" to type)
         if (message != null) event["message"] = message
         if (reason != null) event["reason"] = reason
         if (positionMs != null) event["positionMs"] = positionMs
+        if (code != null) event["code"] = code
         eventSink?.success(event)
     }
 

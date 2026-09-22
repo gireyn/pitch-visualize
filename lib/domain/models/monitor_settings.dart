@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 class MonitorSettings {
   static const minVerticalZoom = .5;
   static const maxVerticalZoom = 2.0;
+  static const minEdo = 0;
+  static const maxEdo = 72;
 
   const MonitorSettings({
     this.threshold = 2,
@@ -22,6 +24,7 @@ class MonitorSettings {
     this.showHold = true,
     this.showScale = true,
     this.showTempo = true,
+    this.edo = 12,
     this.pitchColor = 0xffffd75e,
     this.beatColor = 0xff495466,
     this.metronomeColor = 0xff326b69,
@@ -30,7 +33,7 @@ class MonitorSettings {
   final bool autoScroll, showHz, showTuner, showBeats, flashBeat;
   final bool showSpectrum;
   final bool showHold, showScale, showTempo;
-  final int scrollSpeed, smoothing, bpm, beatsPerBar;
+  final int scrollSpeed, smoothing, bpm, beatsPerBar, edo;
   final int pitchColor, beatColor, metronomeColor;
 
   factory MonitorSettings.fromJson(Map<String, Object?> json) {
@@ -92,6 +95,13 @@ class MonitorSettings {
       showHold: flag('showHold', 'key_display_button_hold', true),
       showScale: flag('showScale', 'key_display_button_scale', true),
       showTempo: flag('showTempo', 'key_display_button_tempo', true),
+      edo: number(
+        'edo',
+        'key_edo',
+        12,
+        minEdo.toDouble(),
+        maxEdo.toDouble(),
+      ).round(),
       pitchColor: color('pitchColor', 'key_color_pitch', 0xffffd75e),
       beatColor: color('beatColor', 'key_color_tempo', 0xff495466),
       metronomeColor: color(
@@ -118,6 +128,7 @@ class MonitorSettings {
     'showHold': showHold,
     'showScale': showScale,
     'showTempo': showTempo,
+    'edo': edo,
     'pitchColor': pitchColor,
     'beatColor': beatColor,
     'metronomeColor': metronomeColor,

@@ -8,6 +8,36 @@ double absCent(double frequency) =>
     (math.log(frequency) - math.log(ScaleConfig.c1Frequency)) / math.ln2 * 1200;
 
 void main() {
+  group('equal division references', () {
+    test('12 EDO retains concert A and standard chromatic note names', () {
+      final scale = ScaleConfig.equalDivision(12);
+      expect(scale.edo, 12);
+      expect(scale.source, isEmpty);
+      expect(scale.noteAt(0, 4).label, 'C4');
+      expect(scale.noteAt(1, 4).label, 'C♯4');
+      expect(scale.noteAt(9, 4).label, 'A4');
+      expect(scale.noteAt(9, 4).frequency, closeTo(440, 1e-9));
+      expect(scale.nearestNote(absCent(440)).label, 'A4');
+    });
+
+    test('all supported divisions provide finite notes and octave periods', () {
+      for (var edo = 0; edo <= 72; edo++) {
+        final scale = ScaleConfig.equalDivision(edo);
+        expect(scale.edo, edo);
+        expect(scale.cents.length, math.max(1, edo));
+        expect(scale.names.toSet().length, scale.cents.length);
+        expect(scale.noteAt(0, 4).frequency, closeTo(261.6255653, 1e-7));
+        expect(scale.noteAt(0, 5).cents - scale.noteAt(0, 4).cents, 1200);
+        expect(scale.nearestNote(absCent(440)).frequency.isFinite, isTrue);
+      }
+      final octaves = ScaleConfig.equalDivision(0);
+      expect(octaves.names, ['C']);
+      expect(octaves.cents, [0]);
+      expect(() => ScaleConfig.equalDivision(-1), throwsRangeError);
+      expect(() => ScaleConfig.equalDivision(73), throwsRangeError);
+    });
+  });
+
   group('pitch tokens', () {
     final tokens = <String, double>{
       '204.15565774574566c': 204.15565774574566,
@@ -106,6 +136,7 @@ void main() {
     );
 
     test('bundled seven equal division labels and colors survive', () {
+      expect(seven.edo, isNull);
       expect(seven.names, ['C', 'D', 'E', 'F', 'G', 'A', 'B']);
       expect(seven.cents.length, 7);
       expect(seven.periodCents, 1200);
@@ -215,6 +246,7 @@ void main() {
       for (final original in [tiangan, seven]) {
         final restored = ScaleConfig.fromPayload(original.toPayload())!;
         expect(restored.name, original.name);
+        expect(restored.edo, isNull);
         expect(restored.names, original.names);
         expect(restored.cents, original.cents);
         expect(restored.colors, original.colors);

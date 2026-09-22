@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../l10n/l10n.dart';
 import '../../core/app_theme.dart';
 import '../settings/settings_screen.dart';
 import 'monitor_controller.dart';
@@ -29,14 +30,14 @@ class MonitorScreen extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            tooltip: '录音库',
+            tooltip: context.l10n.recordingLibrary,
             icon: const Icon(Icons.library_music_outlined),
             onPressed: controller.initialized
                 ? () => _showLibrary(context)
                 : null,
           ),
           PopupMenuButton<String>(
-            tooltip: '更多选项',
+            tooltip: context.l10n.moreOptions,
             onSelected: (action) {
               if (action == 'settings') {
                 Navigator.of(context).push(
@@ -57,11 +58,19 @@ class MonitorScreen extends StatelessWidget {
               PopupMenuItem(
                 value: 'spectrum',
                 child: Text(
-                  controller.settings.showSpectrum ? '切换为音高曲线' : '切换为 FFT 频谱',
+                  controller.settings.showSpectrum
+                      ? context.l10n.showPitchHistory
+                      : context.l10n.showFftSpectrum,
                 ),
               ),
-              PopupMenuItem(value: 'settings', child: Text('设置')),
-              PopupMenuItem(value: 'hold', child: Text('冻结 / 继续图表')),
+              PopupMenuItem(
+                value: 'settings',
+                child: Text(context.l10n.settings),
+              ),
+              PopupMenuItem(
+                value: 'hold',
+                child: Text(context.l10n.freezeResumeGraph),
+              ),
             ],
           ),
           const SizedBox(width: 8),
@@ -76,11 +85,14 @@ class MonitorScreen extends StatelessWidget {
                   children: [
                     if (controller.busy) const CircularProgressIndicator(),
                     const SizedBox(height: 16),
-                    Text(controller.message ?? '正在准备音高监测器…'),
+                    Text(
+                      controller.message?.resolve(context.l10n) ??
+                          context.l10n.preparingMonitor,
+                    ),
                     if (!controller.busy)
                       TextButton(
                         onPressed: controller.initialize,
-                        child: const Text('重试'),
+                        child: Text(context.l10n.retry),
                       ),
                   ],
                 ),
@@ -191,7 +203,10 @@ class MonitorScreen extends StatelessWidget {
                               _BeatIndicator(controller: controller),
                               const SizedBox(height: 8),
                             ],
-                            _Transport(controller: controller, tools: _tools()),
+                            _Transport(
+                              controller: controller,
+                              tools: _tools(context),
+                            ),
                           ],
                         ),
                       ),
@@ -202,10 +217,12 @@ class MonitorScreen extends StatelessWidget {
       ),
     ),
   );
-  List<Widget> _tools() => [
+  List<Widget> _tools(BuildContext context) => [
     if (controller.settings.showHold)
       IconButton.filledTonal(
-        tooltip: controller.held ? '继续图表' : '冻结图表',
+        tooltip: controller.held
+            ? context.l10n.resumeGraph
+            : context.l10n.freezeGraph,
         isSelected: controller.held,
         onPressed: controller.toggleHold,
         icon: Icon(controller.held ? Icons.lock : Icons.lock_open),
@@ -268,11 +285,11 @@ class _Transport extends StatelessWidget {
           if (controller.hasPendingRecording)
             OutlinedButton(
               onPressed: controller.busy ? null : controller.retrySaveRecording,
-              child: const Text('重试保存录音'),
+              child: Text(context.l10n.retrySaveRecording),
             ),
           if (!controller.isCapturing)
             IconButton.filled(
-              tooltip: '开始监听',
+              tooltip: context.l10n.startListening,
               onPressed: controller.busy ? null : controller.startListening,
               icon: const Icon(Icons.mic_none),
             ),
@@ -290,9 +307,9 @@ class _Transport extends StatelessWidget {
                     : Icons.fiber_manual_record,
               ),
               label: Text(
-                controller.isRecording ? recordingTime : '录音',
+                controller.isRecording ? recordingTime : context.l10n.record,
                 semanticsLabel: controller.isRecording
-                    ? '保存录音，已录制 $recordingTime'
+                    ? context.l10n.saveRecordingSemantics(recordingTime)
                     : null,
                 style: const TextStyle(
                   fontFeatures: [FontFeature.tabularFigures()],
@@ -300,14 +317,16 @@ class _Transport extends StatelessWidget {
               ),
             ),
           IconButton.filledTonal(
-            tooltip: '停止',
+            tooltip: context.l10n.stop,
             onPressed: controller.busy || controller.mode == MonitorMode.idle
                 ? null
                 : controller.stop,
             icon: const Icon(Icons.stop),
           ),
           IconButton.filledTonal(
-            tooltip: controller.isPlaying ? '暂停回放' : '播放录音',
+            tooltip: controller.isPlaying
+                ? context.l10n.pausePlayback
+                : context.l10n.playRecording,
             onPressed:
                 controller.busy || !controller.canPlay || controller.isRecording
                 ? null
@@ -336,14 +355,14 @@ class _MessageBanner extends StatelessWidget {
       children: [
         Expanded(
           child: Text(
-            controller.message!,
+            controller.message!.resolve(context.l10n),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 12),
           ),
         ),
         IconButton(
-          tooltip: '关闭提示',
+          tooltip: context.l10n.dismissMessage,
           onPressed: controller.clearMessage,
           icon: const Icon(Icons.close, size: 18),
         ),
@@ -360,10 +379,10 @@ class _RecordingLibrary extends StatelessWidget {
     listenable: controller,
     builder: (context, _) => Scaffold(
       appBar: AppBar(
-        title: const Text('录音库'),
+        title: Text(context.l10n.recordingLibrary),
         actions: [
           IconButton(
-            tooltip: '导入 WAV',
+            tooltip: context.l10n.importWav,
             onPressed: controller.busy ? null : controller.importRecording,
             icon: const Icon(Icons.file_open_outlined),
           ),
@@ -378,13 +397,16 @@ class _RecordingLibrary extends StatelessWidget {
             ),
           Expanded(
             child: controller.recordings.isEmpty
-                ? const Center(
+                ? Center(
                     child: Padding(
-                      padding: EdgeInsets.all(24),
+                      padding: const EdgeInsets.all(24),
                       child: Text(
-                        '还没有录音\n在监测页面录制，或导入 PCM 16 位 WAV',
+                        context.l10n.noRecordings,
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.muted, height: 1.8),
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          height: 1.8,
+                        ),
                       ),
                     ),
                   )
@@ -412,7 +434,7 @@ class _RecordingLibrary extends StatelessWidget {
                                 }
                               },
                         trailing: IconButton(
-                          tooltip: '删除录音',
+                          tooltip: context.l10n.deleteRecording,
                           icon: const Icon(Icons.delete_outline),
                           onPressed: controller.busy
                               ? null
@@ -420,18 +442,22 @@ class _RecordingLibrary extends StatelessWidget {
                                   final remove = await showDialog<bool>(
                                     context: context,
                                     builder: (context) => AlertDialog(
-                                      title: const Text('删除录音？'),
+                                      title: Text(
+                                        context
+                                            .l10n
+                                            .deleteRecordingConfirmation,
+                                      ),
                                       content: Text(entry.name),
                                       actions: [
                                         TextButton(
                                           onPressed: () =>
                                               Navigator.pop(context, false),
-                                          child: const Text('取消'),
+                                          child: Text(context.l10n.cancel),
                                         ),
                                         TextButton(
                                           onPressed: () =>
                                               Navigator.pop(context, true),
-                                          child: const Text('删除'),
+                                          child: Text(context.l10n.delete),
                                         ),
                                       ],
                                     ),

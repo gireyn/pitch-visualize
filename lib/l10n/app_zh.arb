@@ -1,0 +1,272 @@
+{
+  "@@locale": "zh",
+  "recordingLibrary": "录音库",
+  "moreOptions": "更多选项",
+  "showPitchHistory": "切换为音高曲线",
+  "showFftSpectrum": "切换为 FFT 频谱",
+  "settings": "设置",
+  "freezeResumeGraph": "冻结 / 继续图表",
+  "preparingMonitor": "正在准备音高监测器…",
+  "retry": "重试",
+  "resumeGraph": "继续图表",
+  "freezeGraph": "冻结图表",
+  "retrySaveRecording": "重试保存录音",
+  "startListening": "开始监听",
+  "record": "录音",
+  "saveRecordingSemantics": "保存录音，已录制 {time}",
+  "@saveRecordingSemantics": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "stop": "停止",
+  "pausePlayback": "暂停回放",
+  "playRecording": "播放录音",
+  "dismissMessage": "关闭提示",
+  "importWav": "导入 WAV",
+  "noRecordings": "还没有录音\n在监测页面录制，或导入 PCM 16 位 WAV",
+  "deleteRecording": "删除录音",
+  "deleteRecordingConfirmation": "删除录音？",
+  "cancel": "取消",
+  "delete": "删除",
+  "customScale": "自定义调律",
+  "settingsTitle": "设置",
+  "settingsTuning": "调律",
+  "settingsChooseTuning": "选择调律",
+  "settingsNoScaleSelected": "尚未选择",
+  "settingsPitchDetection": "音高检测",
+  "settingsVolumeThreshold": "音量阈值",
+  "settingsVolumeThresholdHint": "过滤轻微环境噪声；较低阈值可检测轻声",
+  "settingsEdoScale": "EDO 刻度",
+  "settingsOctavesOnly": "仅八度",
+  "settingsEdoActiveHint": "EDO 刻度生效；0 表示只显示八度刻度",
+  "settingsEdoInactiveHint": "当前优先使用调律配置。选择“使用 EDO 刻度”后生效；0 表示仅八度",
+  "settingsUseEdoScale": "使用 EDO 刻度",
+  "settingsUseOctavesOnlyDescription": "仅八度刻度 · 取消当前调律配置",
+  "settingsTunerSmoothing": "调音器平滑",
+  "settingsCharts": "图表",
+  "settingsFftSpectrum": "FFT 频谱",
+  "settingsFftSpectrumHint": "对数频率纵轴、调律音名；关闭后显示音高曲线",
+  "settingsHorizontalZoom": "水平缩放",
+  "settingsVerticalZoom": "垂直缩放",
+  "settingsVerticalZoomHint": "也可在图表上双指竖直捏合或拉开",
+  "settingsScrollSpeed": "滚动速度",
+  "settingsAutoFollow": "自动跟随音域",
+  "settingsAutoFollowHint": "拖动或捏合图表会暂停跟随，可在图表中一键恢复",
+  "settingsShowTuner": "显示调音器刻度",
+  "settingsShowTunerHint": "显示音名刻度和当前音高指针，默认关闭",
+  "settingsBeat": "节拍",
+  "settingsTempo": "速度 BPM",
+  "settingsTimeSignature": "拍号",
+  "settingsNoTimeSignature": "无",
+  "settingsShowBeatLines": "显示节拍线",
+  "settingsVisualMetronome": "视觉节拍器",
+  "settingsVisualMetronomeHint": "用闪光指示节拍，不发出声音",
+  "settingsColors": "颜色",
+  "settingsPitchCurve": "音高曲线",
+  "settingsBeatLines": "节拍线",
+  "settingsScaleColorsHint": "使用调律文件时，音阶网格与音名的颜色由文件中的灰度值决定。",
+  "settingsQuickActions": "快捷操作",
+  "settingsShowFreeze": "显示冻结按钮",
+  "settingsAbout": "关于 PitchVisual",
+  "settingsOfflineMonitor": "离线音高监测 · Flutter",
+  "settingsAboutDescription": "iOS 与 Android 使用同一套调律和音高算法。\n录音仅保存在此设备，最长 5 分钟。\n支持的输入：人声或单音乐器。",
+  "settingsOpenSourceLicenses": "开源许可",
+  "settingsDefaultTuningDescription": "默认 · 七等分八度",
+  "settingsImportTuning": "导入调律文件",
+  "settingsTuningFileFormat": "xen-tuner 文本配置（.txt / .json）",
+  "settingsTuningImportHint": "调律会复制并保存在此设备。修改原文件后，请重新导入。",
+  "graphPitchRangeHint": "双指竖直拉开放大、捏合缩小，上下拖动调整音域；手动调整后暂停自动跟随。",
+  "graphNoPitch": "无音高",
+  "graphFrozen": "已冻结",
+  "graphResumeAutoFollow": "恢复自动跟随音域",
+  "graphRangeUp": "音域上移",
+  "graphRangeDown": "音域下移",
+  "graphSpectrumAxis": "FFT · 音高 / log₂",
+  "graphSpectrumIntensity": "频谱强度：负90至0 dBFS",
+  "graphSpectrumEmpty": "开始监听，观察基频与泛音\n每个八度等高 · 亮度表示强度",
+  "settingsEdoDivisions": "{count} 等分",
+  "@settingsEdoDivisions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsUseEdoDescription": "{count} 等分八度 · 取消当前调律配置",
+  "@settingsUseEdoDescription": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsCurrentTuning": "当前：{name}\n{count} 个音 · 周期 {period} 音分",
+  "@settingsCurrentTuning": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      },
+      "period": {
+        "type": "String"
+      }
+    }
+  },
+  "graphCurrentTuning": "当前调律：{name}",
+  "@graphCurrentTuning": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "graphTempo": "速度：每分钟 {bpm} 拍",
+  "@graphTempo": {
+    "placeholders": {
+      "bpm": {
+        "type": "int"
+      }
+    }
+  },
+  "graphPitchHistoryDescription": "音高历史图。当前{note}。纵轴为调律音名，横轴为时间。",
+  "@graphPitchHistoryDescription": {
+    "placeholders": {
+      "note": {
+        "type": "String"
+      }
+    }
+  },
+  "graphDeviation": "偏差 {cents} 音分",
+  "@graphDeviation": {
+    "placeholders": {
+      "cents": {
+        "type": "String"
+      }
+    }
+  },
+  "graphSpectrumDescription": "FFT 滚动频谱。纵轴为对数频率，以{name}音高名标注，每个八度等高。横轴为时间，颜色从暗蓝到橙黄到白表示负90至0 dBFS。",
+  "@graphSpectrumDescription": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "noticeTuningRestored": "已从缓存恢复调律",
+  "noticeSettingsRestored": "本地设置无法完整读取，已恢复默认调律",
+  "noticeRecordingSaved": "录音已保存：{name}",
+  "@noticeRecordingSaved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "noticeRecordingImported": "已导入 {name}",
+  "@noticeRecordingImported": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "noticeScaleApplied": "已应用 {name}",
+  "@noticeScaleApplied": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "noticeAudioDeviceChanged": "音频设备已改变，录音已结束",
+  "noticePlaybackInterrupted": "回放已被系统中断，点击播放可继续",
+  "noticeAudioInterrupted": "音频已被系统中断，请点击开始继续",
+  "errorWavInvalidFile": "WAV 文件为空、损坏或超过 64 MB",
+  "errorWavPcmRequired": "请选择未压缩的 PCM 16 位 WAV 文件",
+  "errorWavIncomplete": "WAV 文件不完整",
+  "errorWavInvalidLength": "WAV 数据长度无效",
+  "errorWavUnsupportedFormat": "仅支持 PCM 16 位 WAV，暂不支持压缩或浮点音频",
+  "errorWavIncompleteChunk": "WAV 数据块不完整",
+  "errorWavInvalidAudio": "WAV 采样率、声道或音频数据无效",
+  "errorRecordingTooLong": "录音最长支持 5 分钟",
+  "errorWavTooLarge": "WAV 超过 64 MB",
+  "errorTuningTooLarge": "调律文件不能超过 1 MB",
+  "errorInvalidRecordingPath": "无效的录音路径",
+  "errorMicrophonePermission": "实时音高检测需要麦克风权限，请在系统设置中开启",
+  "errorRequestBusy": "另一个权限请求或文件选择器已打开",
+  "errorAppInactive": "请打开应用以使用麦克风",
+  "errorRequestCancelled": "请求已取消",
+  "errorCaptureFailed": "麦克风采集失败，请检查音频设备后重试",
+  "errorPlaybackFailed": "音频回放失败，请重新选择录音后重试",
+  "errorRecordingDecode": "无法解码录音文件",
+  "errorFileReadFailed": "无法读取所选文件",
+  "errorDeviceDetails": "设备操作失败：{details}",
+  "@errorDeviceDetails": {
+    "placeholders": {
+      "details": {
+        "type": "String"
+      }
+    }
+  },
+  "errorInvalidFormat": "文件格式无效：{details}",
+  "@errorInvalidFormat": {
+    "placeholders": {
+      "details": {
+        "type": "String"
+      }
+    }
+  },
+  "errorFileOperation": "文件操作失败：{details}",
+  "@errorFileOperation": {
+    "placeholders": {
+      "details": {
+        "type": "String"
+      }
+    }
+  },
+  "errorUnexpected": "操作失败：{details}",
+  "@errorUnexpected": {
+    "placeholders": {
+      "details": {
+        "type": "String"
+      }
+    }
+  },
+  "octaveScale": "八度刻度",
+  "errorAudioDevice": "音频设备出错",
+  "tianganScale": "天干音阶",
+  "errorTuningMissingLines": "调律文件需要包含参考音行和音高行",
+  "errorTuningInvalidReference": "参考音格式应为“C4: 261.63”",
+  "errorTuningInvalidFrequency": "参考频率无效：{detail}",
+  "@errorTuningInvalidFrequency": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "errorTuningMissingPitch": "调律文件至少需要一个音阶音高和一个周期音程",
+  "errorTuningTooManyNotes": "调律文件最多可包含 4096 个音符",
+  "errorTuningInvalidPitch": "无法解析音高：{detail}",
+  "@errorTuningInvalidPitch": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "errorTuningZeroEquave": "周期音程不能为零",
+  "errorTuningReferenceNotFound": "参考音“{detail}”不在音阶中",
+  "@errorTuningReferenceNotFound": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  }
+}

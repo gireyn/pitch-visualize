@@ -1,7 +1,9 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+
+import 'l10n/l10n.dart';
 import 'data/repositories/recording_repository.dart';
 import 'data/repositories/settings_repository.dart';
 import 'data/services/platform_service.dart';
@@ -71,9 +73,8 @@ class _PitchVisualAppState extends State<PitchVisualApp>
     title: 'PitchVisual',
     debugShowCheckedModeBanner: false,
     theme: buildTheme(),
-    locale: const Locale('zh'),
-    supportedLocales: const [Locale('zh'), Locale('en')],
-    localizationsDelegates: GlobalMaterialLocalizations.delegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
     home: MonitorScreen(controller: widget.controller),
   );
 }

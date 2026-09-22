@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/widgets.dart';
+import 'package:pitch_visual/l10n/l10n.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:pitch_visual/data/repositories/recording_repository.dart';
 import 'package:pitch_visual/data/repositories/settings_repository.dart';
@@ -28,11 +30,19 @@ void main() {
       RecordingEntry? testRecording;
       try {
         await controller.initialize();
-        expect(controller.initialized, isTrue, reason: controller.message);
+        expect(
+          controller.initialized,
+          isTrue,
+          reason: controller.message?.resolve(
+            await AppLocalizations.delegate.load(const Locale('en')),
+          ),
+        );
         expect(
           controller.mode,
           MonitorMode.listening,
-          reason: controller.message,
+          reason: controller.message?.resolve(
+            await AppLocalizations.delegate.load(const Locale('en')),
+          ),
         );
         expect(controller.isRecording, isFalse);
         await tester.pumpWidget(
@@ -65,7 +75,13 @@ void main() {
         );
         await controller.selectRecording(testRecording);
         await controller.togglePlayback();
-        expect(controller.isPlaying, isTrue, reason: controller.message);
+        expect(
+          controller.isPlaying,
+          isTrue,
+          reason: controller.message?.resolve(
+            await AppLocalizations.delegate.load(const Locale('en')),
+          ),
+        );
         await tester.pump(const Duration(seconds: 1));
         await Future<void>.delayed(const Duration(milliseconds: 600));
         await tester.pump();

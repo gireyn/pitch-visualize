@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../l10n/l10n.dart';
 import '../../core/app_theme.dart';
 import '../../../domain/models/monitor_settings.dart';
 import '../monitor/monitor_controller.dart';
@@ -13,34 +14,53 @@ class SettingsScreen extends StatelessWidget {
     builder: (context, _) {
       final s = controller.settings;
       return Scaffold(
-        appBar: AppBar(title: const Text('设置')),
+        appBar: AppBar(title: Text(context.l10n.settingsTitle)),
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
               children: [
-                const _Section('调律'),
+                _Section(context.l10n.settingsTuning),
                 ListTile(
                   leading: const Icon(Icons.piano_outlined),
-                  title: const Text('选择调律'),
-                  subtitle: Text(controller.scale?.name ?? '尚未选择'),
+                  title: Text(context.l10n.settingsChooseTuning),
+                  subtitle: Text(
+                    controller.scale == null
+                        ? context.l10n.settingsNoScaleSelected
+                        : context.l10n.scaleName(controller.scale!.name),
+                  ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: controller.busy ? null : () => _showScale(context),
                 ),
-                const _Section('音高检测'),
                 _slider(
-                  '音量阈值',
+                  context.l10n.settingsEdoScale,
+                  'edo',
+                  s.edo.toDouble(),
+                  MonitorSettings.minEdo.toDouble(),
+                  MonitorSettings.maxEdo.toDouble(),
+                  s.edo == 0
+                      ? context.l10n.settingsOctavesOnly
+                      : context.l10n.settingsEdoDivisions(s.edo),
+                  subtitle: controller.scale?.edo != null
+                      ? context.l10n.settingsEdoActiveHint
+                      : context.l10n.settingsEdoInactiveHint,
+                  divisions: MonitorSettings.maxEdo - MonitorSettings.minEdo,
+                  integer: true,
+                ),
+                _Section(context.l10n.settingsPitchDetection),
+                _slider(
+                  context.l10n.settingsVolumeThreshold,
                   'threshold',
                   s.threshold,
                   0,
                   50,
                   '${s.threshold.toStringAsFixed(1)}%',
-                  subtitle: '过滤轻微环境噪声；较低阈值可检测轻声',
+                  subtitle: context.l10n.settingsVolumeThresholdHint,
                   divisions: 100,
                 ),
                 _slider(
-                  '调音器平滑',
+                  context.l10n.settingsTunerSmoothing,
                   'smoothing',
                   s.smoothing.toDouble(),
                   1,
@@ -49,15 +69,15 @@ class SettingsScreen extends StatelessWidget {
                   divisions: 4,
                   integer: true,
                 ),
-                const _Section('图表'),
+                _Section(context.l10n.settingsCharts),
                 _switch(
-                  'FFT 频谱',
+                  context.l10n.settingsFftSpectrum,
                   'showSpectrum',
                   s.showSpectrum,
-                  subtitle: '对数频率纵轴、调律音名；关闭后显示音高曲线',
+                  subtitle: context.l10n.settingsFftSpectrumHint,
                 ),
                 _slider(
-                  '水平缩放',
+                  context.l10n.settingsHorizontalZoom,
                   'horizontalZoom',
                   s.horizontalZoom,
                   1,
@@ -66,17 +86,17 @@ class SettingsScreen extends StatelessWidget {
                   divisions: 10,
                 ),
                 _slider(
-                  '垂直缩放',
+                  context.l10n.settingsVerticalZoom,
                   'verticalZoom',
                   s.verticalZoom,
                   MonitorSettings.minVerticalZoom,
                   MonitorSettings.maxVerticalZoom,
                   '${s.verticalZoom.toStringAsFixed(1)}×',
-                  subtitle: '也可在图表上双指竖直捏合或拉开',
+                  subtitle: context.l10n.settingsVerticalZoomHint,
                   divisions: 15,
                 ),
                 _slider(
-                  '滚动速度',
+                  context.l10n.settingsScrollSpeed,
                   'scrollSpeed',
                   s.scrollSpeed.toDouble(),
                   1,
@@ -86,20 +106,20 @@ class SettingsScreen extends StatelessWidget {
                   integer: true,
                 ),
                 _switch(
-                  '自动跟随音域',
+                  context.l10n.settingsAutoFollow,
                   'autoScroll',
                   s.autoScroll,
-                  subtitle: '拖动或捏合图表会暂停跟随，可在图表中一键恢复',
+                  subtitle: context.l10n.settingsAutoFollowHint,
                 ),
                 _switch(
-                  '显示调音器刻度',
+                  context.l10n.settingsShowTuner,
                   'showTuner',
                   s.showTuner,
-                  subtitle: '显示音名刻度和当前音高指针，默认关闭',
+                  subtitle: context.l10n.settingsShowTunerHint,
                 ),
-                const _Section('节拍'),
+                _Section(context.l10n.settingsBeat),
                 _slider(
-                  '速度 BPM',
+                  context.l10n.settingsTempo,
                   'bpm',
                   s.bpm.toDouble(),
                   20,
@@ -118,12 +138,15 @@ class SettingsScreen extends StatelessWidget {
                     spacing: 12,
                     runSpacing: 8,
                     children: [
-                      const Text('拍号'),
+                      Text(context.l10n.settingsTimeSignature),
                       SegmentedButton<int>(
-                        segments: const [
-                          ButtonSegment(value: 0, label: Text('无')),
-                          ButtonSegment(value: 3, label: Text('3/4')),
-                          ButtonSegment(value: 4, label: Text('4/4')),
+                        segments: [
+                          ButtonSegment(
+                            value: 0,
+                            label: Text(context.l10n.settingsNoTimeSignature),
+                          ),
+                          const ButtonSegment(value: 3, label: Text('3/4')),
+                          const ButtonSegment(value: 4, label: Text('4/4')),
                         ],
                         selected: {s.beatsPerBar},
                         onSelectionChanged: (value) => controller.updateSetting(
@@ -134,50 +157,56 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                _switch('显示节拍线', 'showBeats', s.showBeats),
                 _switch(
-                  '视觉节拍器',
+                  context.l10n.settingsShowBeatLines,
+                  'showBeats',
+                  s.showBeats,
+                ),
+                _switch(
+                  context.l10n.settingsVisualMetronome,
                   'flashBeat',
                   s.flashBeat,
-                  subtitle: '用闪光指示节拍，不发出声音',
+                  subtitle: context.l10n.settingsVisualMetronomeHint,
                 ),
-                const _Section('颜色'),
+                _Section(context.l10n.settingsColors),
                 _ColorChoices(
-                  title: '音高曲线',
+                  title: context.l10n.settingsPitchCurve,
                   value: s.pitchColor,
                   onChanged: (value) =>
                       controller.updateSetting('pitchColor', value),
                 ),
                 _ColorChoices(
-                  title: '节拍线',
+                  title: context.l10n.settingsBeatLines,
                   value: s.beatColor,
                   onChanged: (value) =>
                       controller.updateSetting('beatColor', value),
                 ),
                 _ColorChoices(
-                  title: '视觉节拍器',
+                  title: context.l10n.settingsVisualMetronome,
                   value: s.metronomeColor,
                   onChanged: (value) =>
                       controller.updateSetting('metronomeColor', value),
                 ),
-                const Padding(
-                  padding: EdgeInsets.all(16),
+                Padding(
+                  padding: const EdgeInsets.all(16),
                   child: Text(
-                    '音阶网格与音名的颜色由调律文件中的灰度值决定。',
-                    style: TextStyle(color: AppColors.muted),
+                    context.l10n.settingsScaleColorsHint,
+                    style: const TextStyle(color: AppColors.muted),
                   ),
                 ),
-                const _Section('快捷操作'),
-                _switch('显示冻结按钮', 'showHold', s.showHold),
-                const _Section('关于 PitchVisual'),
-                const ListTile(
-                  title: Text('离线音高监测 · Flutter'),
-                  subtitle: Text(
-                    'iOS 与 Android 使用同一套调律和音高算法。\n录音仅保存在此设备，最长 5 分钟。\n支持的输入：人声或单音乐器。',
-                  ),
+                _Section(context.l10n.settingsQuickActions),
+                _switch(
+                  context.l10n.settingsShowFreeze,
+                  'showHold',
+                  s.showHold,
+                ),
+                _Section(context.l10n.settingsAbout),
+                ListTile(
+                  title: Text(context.l10n.settingsOfflineMonitor),
+                  subtitle: Text(context.l10n.settingsAboutDescription),
                 ),
                 ListTile(
-                  title: const Text('开源许可'),
+                  title: Text(context.l10n.settingsOpenSourceLicenses),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => showLicensePage(
                     context: context,
@@ -204,15 +233,39 @@ class SettingsScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: Text('调律', style: Theme.of(context).textTheme.titleLarge),
-              subtitle: Text(
-                '当前：${controller.scale?.name}\n${controller.scale?.names.length} 个音 · 周期 ${controller.scale?.periodCents.toStringAsFixed(2)} 音分',
+              title: Text(
+                context.l10n.settingsTuning,
+                style: Theme.of(context).textTheme.titleLarge,
               ),
+              subtitle: Text(
+                controller.scale == null
+                    ? context.l10n.settingsNoScaleSelected
+                    : context.l10n.settingsCurrentTuning(
+                        context.l10n.scaleName(controller.scale!.name),
+                        controller.scale!.names.length,
+                        controller.scale!.periodCents.toStringAsFixed(2),
+                      ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.grid_on_outlined),
+              title: Text(context.l10n.settingsUseEdoScale),
+              subtitle: Text(
+                controller.settings.edo == 0
+                    ? context.l10n.settingsUseOctavesOnlyDescription
+                    : context.l10n.settingsUseEdoDescription(
+                        controller.settings.edo,
+                      ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                controller.useEdoScale();
+              },
             ),
             ListTile(
               leading: const Icon(Icons.piano),
               title: const Text('7ed2 on C'),
-              subtitle: const Text('默认 · 七等分八度'),
+              subtitle: Text(context.l10n.settingsDefaultTuningDescription),
               onTap: () {
                 Navigator.pop(context);
                 controller.useBundledScale(false);
@@ -220,7 +273,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             ListTile(
               leading: const Icon(Icons.music_note_outlined),
-              title: const Text('天干音阶'),
+              title: Text(context.l10n.tianganScale),
               subtitle: const Text('甲 乙 丙 丁 戊 己 庚 辛 壬 癸'),
               onTap: () {
                 Navigator.pop(context);
@@ -229,18 +282,18 @@ class SettingsScreen extends StatelessWidget {
             ),
             ListTile(
               leading: const Icon(Icons.file_open_outlined),
-              title: const Text('导入调律文件'),
-              subtitle: const Text('xen-tuner 文本配置（.txt / .json）'),
+              title: Text(context.l10n.settingsImportTuning),
+              subtitle: Text(context.l10n.settingsTuningFileFormat),
               onTap: () {
                 Navigator.pop(context);
                 controller.importScale();
               },
             ),
-            const Padding(
-              padding: EdgeInsets.all(16),
+            Padding(
+              padding: const EdgeInsets.all(16),
               child: Text(
-                '调律会复制并保存在此设备。修改原文件后，请重新导入。',
-                style: TextStyle(color: AppColors.muted),
+                context.l10n.settingsTuningImportHint,
+                style: const TextStyle(color: AppColors.muted),
               ),
             ),
           ],
