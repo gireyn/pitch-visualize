@@ -7,6 +7,7 @@ import '../../../domain/tuning/scale_config.dart';
 import '../../../l10n/l10n.dart';
 import '../../core/app_theme.dart';
 import 'graph_watermarks.dart';
+import 'graph_timeline.dart';
 import 'monitor_controller.dart';
 import 'pitch_range_gesture.dart';
 import 'spectrum_graph.dart';
@@ -83,6 +84,7 @@ class _PitchHistoryGraphState extends State<_PitchHistoryGraph> {
                             history: controller.history,
                             time: controller.graphTime,
                             seconds: controller.graphSeconds,
+                            playbackTime: controller.graphPlaybackTime,
                             viewport: viewport,
                             textScaler: textScaler,
                             padding: padding,
@@ -104,35 +106,13 @@ class _PitchHistoryGraphState extends State<_PitchHistoryGraph> {
                       scaleName: scale.name,
                       bpm: controller.settings.bpm,
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (controller.held) _Badge(context.l10n.graphFrozen),
-                          if (!controller.settings.autoScroll) ...[
-                            IconButton.filledTonal(
-                              tooltip: context.l10n.graphResumeAutoFollow,
-                              onPressed: () =>
-                                  controller.updateSetting('autoScroll', true),
-                              icon: const Icon(Icons.my_location),
-                            ),
-                            const SizedBox(width: 4),
-                            IconButton.filledTonal(
-                              tooltip: context.l10n.graphRangeUp,
-                              onPressed: () => controller.panRange(300),
-                              icon: const Icon(Icons.keyboard_arrow_up),
-                            ),
-                            const SizedBox(width: 4),
-                            IconButton.filledTonal(
-                              tooltip: context.l10n.graphRangeDown,
-                              onPressed: () => controller.panRange(-300),
-                              icon: const Icon(Icons.keyboard_arrow_down),
-                            ),
-                          ],
-                        ],
+                    if (controller.held)
+                      IgnorePointer(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: _Badge(context.l10n.graphFrozen),
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -165,6 +145,7 @@ class _HistoryPainter extends CustomPainter {
     required this.history,
     required this.time,
     required this.seconds,
+    required this.playbackTime,
     required this.viewport,
     required this.textScaler,
     required this.padding,
@@ -173,6 +154,7 @@ class _HistoryPainter extends CustomPainter {
   final MonitorSettings settings;
   final List<PitchPoint> history;
   final double time, seconds;
+  final double? playbackTime;
   final RangeValues viewport;
   final TextScaler textScaler;
   final EdgeInsets padding;
@@ -183,6 +165,7 @@ class _HistoryPainter extends CustomPainter {
     Color color, {
     double size = 12,
     double maxWidth = double.infinity,
+    double? centerWithinWidth,
   }) {
     final text = TextPainter(
       text: TextSpan(
@@ -194,7 +177,18 @@ class _HistoryPainter extends CustomPainter {
       maxLines: 1,
       ellipsis: '…',
     )..layout(maxWidth: maxWidth);
-    text.paint(canvas, offset);
+    text.paint(
+      canvas,
+      centerWithinWidth == null
+          ? offset
+          : Offset(
+              (offset.dx - text.width / 2).clamp(
+                0.0,
+                math.max(0, centerWithinWidth - text.width),
+              ),
+              offset.dy,
+            ),
+    );
   }
 
   @override
@@ -251,8 +245,11 @@ class _HistoryPainter extends CustomPainter {
       Offset(plot.left, plot.bottom),
       Paint()..color = AppColors.line,
     );
-    for (var step = 0; step <= 4; step++) {
-      final x = plot.left + plot.width * step / 4;
+    final timeSteps = playbackTime == null
+        ? 4
+        : (plot.width / (textScaler.scale(10) * 7 + 12)).floor().clamp(1, 4);
+    for (var step = 0; step <= timeSteps; step++) {
+      final x = plot.left + plot.width * step / timeSteps;
       canvas.drawLine(
         Offset(x, plot.top),
         Offset(x, plot.bottom),
@@ -260,10 +257,13 @@ class _HistoryPainter extends CustomPainter {
       );
       label(
         canvas,
-        '${((step / 4 - 1) * seconds).round()}s',
-        Offset(x - 10, plot.bottom + 8),
+        playbackTime == null
+            ? '${((step / timeSteps - 1) * seconds).round()}s'
+            : recordingTimeLabel(step / timeSteps * seconds),
+        Offset(x, plot.bottom + 8),
         AppColors.muted,
         size: 10,
+        centerWithinWidth: size.width,
       );
     }
     canvas.save();
@@ -291,7 +291,7 @@ class _HistoryPainter extends CustomPainter {
     double? lastTime, lastCent;
     Offset? last;
     for (final point in history) {
-      if (point.seconds < time - seconds) continue;
+      if (point.seconds < time - seconds || point.seconds > time) continue;
       final cents = point.cents;
       if (cents == null) {
         connected = false;
@@ -329,6 +329,7 @@ class _HistoryPainter extends CustomPainter {
     if (connected && last != null) {
       canvas.drawCircle(last, 4, Paint()..color = Color(settings.pitchColor));
     }
+    drawPlaybackCursor(canvas, plot, position: playbackTime, duration: seconds);
     canvas.restore();
   }
 

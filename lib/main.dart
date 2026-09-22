@@ -70,7 +70,7 @@ class _PitchVisualAppState extends State<PitchVisualApp>
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'PitchVisual',
+    title: 'Pitch Visual',
     debugShowCheckedModeBanner: false,
     theme: buildTheme(),
     supportedLocales: AppLocalizations.supportedLocales,

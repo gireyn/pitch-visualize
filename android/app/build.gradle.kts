@@ -29,7 +29,17 @@ android {
         versionName = flutter.versionName
     }
 
+    // ABI filters are merged, so move Flutter's defaults to individual build types.
+    val flutterAbis = defaultConfig.ndk.abiFilters.toSet()
+    defaultConfig.ndk.abiFilters.clear()
+
     buildTypes {
+        configureEach {
+            ndk.abiFilters.addAll(
+                if (name == "release") setOf("arm64-v8a") else flutterAbis,
+            )
+        }
+
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.

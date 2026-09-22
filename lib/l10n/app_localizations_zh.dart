@@ -153,7 +153,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsAutoFollow => '自动跟随音域';
 
   @override
-  String get settingsAutoFollowHint => '拖动或捏合图表会暂停跟随，可在图表中一键恢复';
+  String get settingsAutoFollowHint => '拖动或捏合图表会暂停跟随；双击图表可自动适配音域并恢复跟随';
 
   @override
   String get settingsShowTuner => '显示调音器刻度';
@@ -226,7 +226,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsTuningImportHint => '调律会复制并保存在此设备。修改原文件后，请重新导入。';
 
   @override
-  String get graphPitchRangeHint => '双指竖直拉开放大、捏合缩小，上下拖动调整音域；手动调整后暂停自动跟随。';
+  String get graphPitchRangeHint =>
+      '单击冻结或解冻；双击自动适配音域并恢复跟随。双指竖直拉开放大、捏合缩小，上下拖动调整音域；手动调整后暂停自动跟随。';
 
   @override
   String get graphNoPitch => '无音高';
@@ -235,7 +236,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get graphFrozen => '已冻结';
 
   @override
-  String get graphResumeAutoFollow => '恢复自动跟随音域';
+  String get graphResumeAutoFollow => '自动适配音域并恢复跟随';
 
   @override
   String get graphRangeUp => '音域上移';
@@ -398,6 +399,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String errorUnexpected(String details) {
     return '操作失败：$details';
   }
+
+  @override
+  String get analyzingRecording => '正在分析整段录音…';
 
   @override
   String get octaveScale => '八度刻度';

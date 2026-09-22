@@ -11,6 +11,7 @@ import '../../../domain/tuning/scale_config.dart';
 import '../../../l10n/l10n.dart';
 import '../../core/app_theme.dart';
 import 'graph_watermarks.dart';
+import 'graph_timeline.dart';
 import 'monitor_controller.dart';
 import 'pitch_range_gesture.dart';
 import 'scale_grid.dart';
@@ -179,6 +180,7 @@ class _SpectrumGraphState extends State<SpectrumGraph> {
                                   settings: controller.settings,
                                   time: controller.graphTime,
                                   seconds: controller.graphSeconds,
+                                  playbackTime: controller.graphPlaybackTime,
                                   viewport: viewport,
                                   textScaler: MediaQuery.textScalerOf(context),
                                   labelStyle: Theme.of(context)
@@ -211,41 +213,19 @@ class _SpectrumGraphState extends State<SpectrumGraph> {
                             ),
                           ),
                         ),
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        right: 8,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (controller.held)
-                              Chip(label: Text(context.l10n.graphFrozen)),
-                            if (!controller.settings.autoScroll) ...[
-                              IconButton.filledTonal(
-                                tooltip: context.l10n.graphResumeAutoFollow,
-                                onPressed: () => controller.updateSetting(
-                                  'autoScroll',
-                                  true,
-                                ),
-                                icon: const Icon(Icons.my_location),
+                      if (controller.held)
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          right: 8,
+                          child: IgnorePointer(
+                            child: Center(
+                              child: Chip(
+                                label: Text(context.l10n.graphFrozen),
                               ),
-                              const SizedBox(width: 4),
-                              IconButton.filledTonal(
-                                tooltip: context.l10n.graphRangeUp,
-                                onPressed: () => controller.panRange(300),
-                                icon: const Icon(Icons.keyboard_arrow_up),
-                              ),
-                              const SizedBox(width: 4),
-                              IconButton.filledTonal(
-                                tooltip: context.l10n.graphRangeDown,
-                                onPressed: () => controller.panRange(-300),
-                                icon: const Icon(Icons.keyboard_arrow_down),
-                              ),
-                            ],
-                          ],
+                            ),
+                          ),
                         ),
-                      ),
                     ],
                   );
                 },
@@ -317,6 +297,7 @@ class _SpectrumPainter extends CustomPainter {
     required this.settings,
     required this.time,
     required this.seconds,
+    required this.playbackTime,
     required this.viewport,
     required this.textScaler,
     required this.labelStyle,
@@ -326,6 +307,7 @@ class _SpectrumPainter extends CustomPainter {
   final List<ScaleGridLine> lines;
   final MonitorSettings settings;
   final double time, seconds;
+  final double? playbackTime;
   final RangeValues viewport;
   final TextScaler textScaler;
   final TextStyle labelStyle;
@@ -422,6 +404,7 @@ class _SpectrumPainter extends CustomPainter {
         );
       }
     }
+    drawPlaybackCursor(canvas, plot, position: playbackTime, duration: seconds);
     canvas.restore();
 
     // Cull labels from a fixed spectrum-wide anchor before clipping, so a note
@@ -451,12 +434,17 @@ class _SpectrumPainter extends CustomPainter {
         Offset(plot.left - text.width - 8, yy - text.height / 2),
       );
     }
-    for (var step = 0; step <= 4; step++) {
-      final value = step == 4
+    final timeSteps = playbackTime == null
+        ? 4
+        : (plot.width / (textScaler.scale(12) * 7 + 12)).floor().clamp(1, 4);
+    for (var step = 0; step <= timeSteps; step++) {
+      final value = playbackTime != null
+          ? recordingTimeLabel(step / timeSteps * seconds)
+          : step == timeSteps
           ? '0 s'
-          : '−${((1 - step / 4) * seconds).toStringAsFixed(1)}';
+          : '−${((1 - step / timeSteps) * seconds).toStringAsFixed(1)}';
       final text = _text(value)..layout();
-      final xx = plot.left + plot.width * step / 4;
+      final xx = plot.left + plot.width * step / timeSteps;
       text.paint(
         canvas,
         Offset(

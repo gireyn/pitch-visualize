@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:ui' show ClipOp;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pitch_visual/l10n/l10n.dart';
@@ -114,6 +115,14 @@ void main() {
         return canvas;
       }
 
+      Future<void> doubleTap(WidgetTester tester, Offset position) async {
+        await tester.tapAt(position);
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tapAt(position);
+        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+        await tester.pumpAndSettle();
+      }
+
       testWidgets(
         'vertical drag works with automatic following and paints immediately',
         (tester) async {
@@ -132,6 +141,7 @@ void main() {
             closeTo(30 * range / plot.height, .001),
           );
           expect(model.settings.autoScroll, isFalse);
+          expect(model.held, isFalse);
           expect(model.settings.verticalZoom, 1.5);
           final grid = paint(tester).grid;
           await tester.pump(const Duration(milliseconds: 250));
@@ -147,10 +157,12 @@ void main() {
           expect(platform.preferences, isNotNull);
           final saved = jsonDecode(platform.preferences!) as Map;
           expect((saved['settings'] as Map)['autoScroll'], isFalse);
-          await tester.tap(find.byTooltip('恢复自动跟随音域'));
-          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-          await tester.pumpAndSettle();
+          expect(find.byType(IconButton), findsNothing);
+          await doubleTap(tester, tester.getCenter(painter()));
           expect(model.settings.autoScroll, isTrue);
+          expect(model.held, isFalse);
+          final resumed = jsonDecode(platform.preferences!) as Map;
+          expect((resumed['settings'] as Map)['autoScroll'], isTrue);
           expect(tester.takeException(), isNull);
         },
       );
@@ -205,6 +217,7 @@ void main() {
           expect(model.settings.verticalZoom, zoom);
           await first.up();
           await tester.pumpAndSettle();
+          expect(model.held, isFalse);
           expect(tester.takeException(), isNull);
         },
       );
@@ -236,18 +249,64 @@ void main() {
       });
 
       testWidgets(
-        'tap and horizontal swipe leave automatic following enabled',
+        'horizontal swipe changes neither the viewport nor freeze state',
         (tester) async {
           await mount(tester);
-          await tester.tapAt(tester.getCenter(painter()));
           await tester.drag(painter(), const Offset(100, 0));
           await tester.pumpAndSettle();
           expect(model.settings.autoScroll, isTrue);
+          expect(model.held, isFalse);
           expect(model.centerCents, 4800);
           expect(model.settings.verticalZoom, 1.5);
           expect(platform.preferences, isNull);
         },
       );
+
+      for (final size in [const Size(375, 500), const Size(740, 260)]) {
+        testWidgets('single taps freeze and unfreeze the chart at $size', (
+          tester,
+        ) async {
+          await mount(tester, size: size);
+          final position = tester.getCenter(painter());
+          await tester.tapAt(position);
+          await tester.pump(kDoubleTapTimeout);
+          await tester.pumpAndSettle();
+          expect(model.held, isTrue);
+          expect(find.text('已冻结'), findsOneWidget);
+          expect(model.settings.autoScroll, isTrue);
+          expect(model.centerCents, 4800);
+          expect(model.settings.verticalZoom, 1.5);
+
+          // The frozen badge must not intercept taps on the plot beneath it.
+          await tester.tapAt(tester.getCenter(find.text('已冻结')));
+          await tester.pump(kDoubleTapTimeout);
+          await tester.pumpAndSettle();
+          expect(model.held, isFalse);
+          expect(find.text('已冻结'), findsNothing);
+          expect(platform.preferences, isNull);
+          expect(tester.takeException(), isNull);
+        });
+      }
+
+      for (final held in [false, true]) {
+        testWidgets('double tap never toggles freeze when held=$held', (
+          tester,
+        ) async {
+          model.settings = model.settings.withValue('autoScroll', false);
+          if (held) model.toggleHold();
+          final heldStates = <bool>[];
+          model.addListener(() => heldStates.add(model.held));
+          await mount(tester);
+          await doubleTap(tester, tester.getCenter(painter()));
+          await tester.pump(kDoubleTapTimeout);
+          expect(model.settings.autoScroll, isTrue);
+          expect(model.held, held);
+          expect(heldStates, isNotEmpty);
+          expect(heldStates, everyElement(held));
+          expect(find.byType(IconButton), findsNothing);
+          expect(tester.takeException(), isNull);
+        });
+      }
 
       testWidgets('chart drag wins over the compact screen scroll view', (
         tester,

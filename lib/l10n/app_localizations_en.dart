@@ -161,7 +161,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsAutoFollowHint =>
-      'Dragging or pinching pauses following; resume it with one tap on the chart';
+      'Dragging or pinching pauses following; double-tap the chart to fit the pitch range and resume following';
 
   @override
   String get settingsShowTuner => 'Show tuner scale';
@@ -241,7 +241,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get graphPitchRangeHint =>
-      'Spread two fingers vertically to zoom in, pinch to zoom out, or drag up and down to adjust the pitch range. Manual adjustments pause automatic following.';
+      'Tap to freeze or unfreeze. Double-tap to fit the pitch range and resume following. Spread two fingers vertically to zoom in, pinch to zoom out, or drag up and down to adjust the pitch range. Manual adjustments pause automatic following.';
 
   @override
   String get graphNoPitch => 'no pitch';
@@ -250,7 +250,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get graphFrozen => 'Frozen';
 
   @override
-  String get graphResumeAutoFollow => 'Resume following pitch range';
+  String get graphResumeAutoFollow => 'Fit pitch range and resume following';
 
   @override
   String get graphRangeUp => 'Move pitch range up';
@@ -427,6 +427,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String errorUnexpected(String details) {
     return 'Operation failed: $details';
   }
+
+  @override
+  String get analyzingRecording => 'Analyzing the full recording…';
 
   @override
   String get octaveScale => 'Octave guides';

@@ -93,7 +93,11 @@ void main() {
         'C4: 261.6255653\n0\\7 1\\7 2\\7 3\\7 4\\7 5\\7 6\\7 7\\7\nC D E F G A B',
         '7ed2 on C',
       )
-      ..settings = const MonitorSettings(horizontalZoom: 1.3, scrollSpeed: 10)
+      ..settings = const MonitorSettings(
+        horizontalZoom: 1.3,
+        scrollSpeed: 10,
+        showSpectrum: true,
+      )
       ..currentTime = 7
       ..frequency = analyzer.peakFrequency;
     controller.note = controller.scale!.nearestNote(3200);
@@ -137,15 +141,11 @@ void main() {
       }
       image.dispose();
     });
-    await tester.tap(find.byTooltip('更多选项'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('切换为音高曲线'));
+    await tester.tap(find.byTooltip('切换为音高曲线'));
     await tester.pumpAndSettle();
     expect(controller.settings.showSpectrum, isFalse);
     expect(find.byType(SpectrumGraph), findsNothing);
-    await tester.tap(find.byTooltip('更多选项'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('切换为 FFT 频谱'));
+    await tester.tap(find.byTooltip('切换为 FFT 频谱'));
     await tester.pumpAndSettle();
     expect(controller.settings.showSpectrum, isTrue);
     expect(find.byType(SpectrumGraph), findsOneWidget);

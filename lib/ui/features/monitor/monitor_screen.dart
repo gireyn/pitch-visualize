@@ -21,7 +21,7 @@ class MonitorScreen extends StatelessWidget {
             SizedBox(width: 10),
             Flexible(
               child: Text(
-                'PitchVisual',
+                'Pitch Visual',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -36,42 +36,14 @@ class MonitorScreen extends StatelessWidget {
                 ? () => _showLibrary(context)
                 : null,
           ),
-          PopupMenuButton<String>(
-            tooltip: context.l10n.moreOptions,
-            onSelected: (action) {
-              if (action == 'settings') {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => SettingsScreen(controller: controller),
-                  ),
-                );
-              }
-              if (action == 'hold') controller.toggleHold();
-              if (action == 'spectrum') {
-                controller.updateSetting(
-                  'showSpectrum',
-                  !controller.settings.showSpectrum,
-                );
-              }
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'spectrum',
-                child: Text(
-                  controller.settings.showSpectrum
-                      ? context.l10n.showPitchHistory
-                      : context.l10n.showFftSpectrum,
-                ),
+          IconButton(
+            tooltip: context.l10n.settings,
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => SettingsScreen(controller: controller),
               ),
-              PopupMenuItem(
-                value: 'settings',
-                child: Text(context.l10n.settings),
-              ),
-              PopupMenuItem(
-                value: 'hold',
-                child: Text(context.l10n.freezeResumeGraph),
-              ),
-            ],
+            ),
           ),
           const SizedBox(width: 8),
         ],
@@ -117,6 +89,8 @@ class MonitorScreen extends StatelessWidget {
                         ),
                         child: Column(
                           children: [
+                            if (controller.analyzingRecording)
+                              const _RecordingAnalysisStatus(),
                             if (controller.message != null)
                               _MessageBanner(controller: controller),
                             if (wide)
@@ -218,6 +192,18 @@ class MonitorScreen extends StatelessWidget {
     ),
   );
   List<Widget> _tools(BuildContext context) => [
+    IconButton.filledTonal(
+      tooltip: controller.settings.showSpectrum
+          ? context.l10n.showPitchHistory
+          : context.l10n.showFftSpectrum,
+      isSelected: controller.settings.showSpectrum,
+      onPressed: () => controller.updateSetting(
+        'showSpectrum',
+        !controller.settings.showSpectrum,
+      ),
+      icon: const Icon(Icons.show_chart),
+      selectedIcon: const Icon(Icons.graphic_eq),
+    ),
     if (controller.settings.showHold)
       IconButton.filledTonal(
         tooltip: controller.held
@@ -276,6 +262,10 @@ class _Transport extends StatelessWidget {
     final seconds = controller.recordingSeconds.toInt();
     final recordingTime =
         '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+    // When idle, resume the source shown by the graph rather than a recording
+    // that may still be selected from an earlier session.
+    final startsListening =
+        controller.mode == MonitorMode.idle && !controller.hasRecordingOverview;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -287,34 +277,34 @@ class _Transport extends StatelessWidget {
               onPressed: controller.busy ? null : controller.retrySaveRecording,
               child: Text(context.l10n.retrySaveRecording),
             ),
-          if (!controller.isCapturing)
+          if (!controller.isCapturing && !startsListening)
             IconButton.filled(
               tooltip: context.l10n.startListening,
               onPressed: controller.busy ? null : controller.startListening,
               icon: const Icon(Icons.mic_none),
             ),
-          if (controller.isCapturing)
+          if (controller.isRecording)
             FilledButton.icon(
               onPressed: controller.busy ? null : controller.toggleRecording,
-              style: controller.isRecording
-                  ? FilledButton.styleFrom(
-                      backgroundColor: const Color(0xffffb4ab),
-                    )
-                  : null,
-              icon: Icon(
-                controller.isRecording
-                    ? Icons.save_outlined
-                    : Icons.fiber_manual_record,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xffffb4ab),
               ),
+              icon: const Icon(Icons.save_outlined),
               label: Text(
-                controller.isRecording ? recordingTime : context.l10n.record,
-                semanticsLabel: controller.isRecording
-                    ? context.l10n.saveRecordingSemantics(recordingTime)
-                    : null,
+                recordingTime,
+                semanticsLabel: context.l10n.saveRecordingSemantics(
+                  recordingTime,
+                ),
                 style: const TextStyle(
                   fontFeatures: [FontFeature.tabularFigures()],
                 ),
               ),
+            )
+          else if (controller.isCapturing)
+            IconButton.filled(
+              tooltip: context.l10n.record,
+              onPressed: controller.busy ? null : controller.toggleRecording,
+              icon: const Icon(Icons.fiber_manual_record),
             ),
           IconButton.filledTonal(
             tooltip: context.l10n.stop,
@@ -324,12 +314,18 @@ class _Transport extends StatelessWidget {
             icon: const Icon(Icons.stop),
           ),
           IconButton.filledTonal(
-            tooltip: controller.isPlaying
+            tooltip: startsListening
+                ? context.l10n.startListening
+                : controller.isPlaying
                 ? context.l10n.pausePlayback
                 : context.l10n.playRecording,
             onPressed:
-                controller.busy || !controller.canPlay || controller.isRecording
+                controller.busy ||
+                    controller.isRecording ||
+                    (!startsListening && !controller.canPlay)
                 ? null
+                : startsListening
+                ? controller.startListening
                 : controller.togglePlayback,
             icon: Icon(controller.isPlaying ? Icons.pause : Icons.play_arrow),
           ),
@@ -390,6 +386,7 @@ class _RecordingLibrary extends StatelessWidget {
       ),
       body: Column(
         children: [
+          if (controller.analyzingRecording) const _RecordingAnalysisStatus(),
           if (controller.message != null)
             Padding(
               padding: const EdgeInsets.all(16),
@@ -471,6 +468,28 @@ class _RecordingLibrary extends StatelessWidget {
                     },
                   ),
           ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _RecordingAnalysisStatus extends StatelessWidget {
+  const _RecordingAnalysisStatus();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(12),
+    child: Semantics(
+      liveRegion: true,
+      child: Row(
+        children: [
+          const SizedBox.square(
+            dimension: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Text(context.l10n.analyzingRecording)),
         ],
       ),
     ),

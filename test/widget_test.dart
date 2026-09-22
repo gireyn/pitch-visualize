@@ -52,7 +52,7 @@ void main() {
         PitchVisualApp(controller: model, initialize: false),
       );
       await tester.pumpAndSettle();
-      expect(find.text('PitchVisual'), findsOneWidget);
+      expect(find.text('Pitch Visual'), findsOneWidget);
       expect(find.byTooltip('开始监听'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.ensureVisible(find.byTooltip('冻结图表'));
@@ -89,9 +89,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    await tester.tap(find.byTooltip('更多选项'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('设置'));
+    await tester.tap(find.byTooltip('设置'));
     await tester.pumpAndSettle();
     expect(find.text('音量阈值'), findsOneWidget);
     expect(tester.takeException(), isNull);

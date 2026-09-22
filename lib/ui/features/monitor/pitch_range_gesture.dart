@@ -4,6 +4,7 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
 import '../../../domain/models/monitor_settings.dart';
 import '../../../l10n/l10n.dart';
@@ -53,6 +54,8 @@ class _PitchRangeGestureState extends State<PitchRangeGesture> {
   final _team = GestureArenaTeam();
   final _pointers = <int>{};
 
+  void _fitAndFollow() => unawaited(widget.controller.fitPitchRangeAndFollow());
+
   void _finish() {
     if (!_changed) return;
     setState(() => _changed = false);
@@ -86,6 +89,10 @@ class _PitchRangeGestureState extends State<PitchRangeGesture> {
           .5 - (y - widget.plotPadding.top) / height;
       return Semantics(
         hint: context.l10n.graphPitchRangeHint,
+        customSemanticsActions: {
+          CustomSemanticsAction(label: context.l10n.graphResumeAutoFollow):
+              _fitAndFollow,
+        },
         child: Listener(
           onPointerDown: (event) => _pointers.add(event.pointer),
           onPointerUp: _pointerEnded,
@@ -93,6 +100,19 @@ class _PitchRangeGestureState extends State<PitchRangeGesture> {
           child: RawGestureDetector(
             behavior: HitTestBehavior.opaque,
             gestures: {
+              TapGestureRecognizer:
+                  GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+                    TapGestureRecognizer.new,
+                    (recognizer) =>
+                        recognizer..onTap = widget.controller.toggleHold,
+                  ),
+              DoubleTapGestureRecognizer:
+                  GestureRecognizerFactoryWithHandlers<
+                    DoubleTapGestureRecognizer
+                  >(
+                    DoubleTapGestureRecognizer.new,
+                    (recognizer) => recognizer..onDoubleTap = _fitAndFollow,
+                  ),
               ScaleGestureRecognizer:
                   GestureRecognizerFactoryWithHandlers<ScaleGestureRecognizer>(
                     () {

@@ -15,7 +15,7 @@ class MonitorSettings {
     this.scrollSpeed = 5,
     this.showHz = true,
     this.showTuner = false,
-    this.showSpectrum = true,
+    this.showSpectrum = false,
     this.smoothing = 3,
     this.bpm = 120,
     this.beatsPerBar = 4,
@@ -82,7 +82,7 @@ class MonitorSettings {
       scrollSpeed: number('scrollSpeed', 'key_scroll_speed', 5, 1, 10).round(),
       showHz: flag('showHz', 'key_display_hz', true),
       showTuner: flag('showTuner', 'key_display_tuner', false),
-      showSpectrum: flag('showSpectrum', 'showSpectrum', true),
+      showSpectrum: flag('showSpectrum', 'showSpectrum', false),
       smoothing: number('smoothing', 'key_tuner_smooth', 3, 1, 5).round(),
       bpm: number('bpm', 'key_bpm', 120, 20, 250).round(),
       beatsPerBar: meter == 3 || meter == '3/4'

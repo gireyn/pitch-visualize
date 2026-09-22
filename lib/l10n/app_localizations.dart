@@ -383,7 +383,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsAutoFollowHint.
   ///
   /// In en, this message translates to:
-  /// **'Dragging or pinching pauses following; resume it with one tap on the chart'**
+  /// **'Dragging or pinching pauses following; double-tap the chart to fit the pitch range and resume following'**
   String get settingsAutoFollowHint;
 
   /// No description provided for @settingsShowTuner.
@@ -527,7 +527,7 @@ abstract class AppLocalizations {
   /// No description provided for @graphPitchRangeHint.
   ///
   /// In en, this message translates to:
-  /// **'Spread two fingers vertically to zoom in, pinch to zoom out, or drag up and down to adjust the pitch range. Manual adjustments pause automatic following.'**
+  /// **'Tap to freeze or unfreeze. Double-tap to fit the pitch range and resume following. Spread two fingers vertically to zoom in, pinch to zoom out, or drag up and down to adjust the pitch range. Manual adjustments pause automatic following.'**
   String get graphPitchRangeHint;
 
   /// No description provided for @graphNoPitch.
@@ -545,7 +545,7 @@ abstract class AppLocalizations {
   /// No description provided for @graphResumeAutoFollow.
   ///
   /// In en, this message translates to:
-  /// **'Resume following pitch range'**
+  /// **'Fit pitch range and resume following'**
   String get graphResumeAutoFollow;
 
   /// No description provided for @graphRangeUp.
@@ -811,6 +811,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Operation failed: {details}'**
   String errorUnexpected(String details);
+
+  /// No description provided for @analyzingRecording.
+  ///
+  /// In en, this message translates to:
+  /// **'Analyzing the full recording…'**
+  String get analyzingRecording;
 
   /// No description provided for @octaveScale.
   ///

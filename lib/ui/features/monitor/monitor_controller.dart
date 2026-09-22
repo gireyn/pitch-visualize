@@ -10,6 +10,7 @@ import '../../../data/repositories/settings_repository.dart';
 import '../../../data/services/platform_service.dart';
 import '../../../domain/audio/pitch_worker.dart';
 import '../../../domain/audio/log_spectrum.dart';
+import '../../../domain/audio/recording_analyzer.dart';
 import '../../../domain/models/monitor_settings.dart';
 import '../../../domain/models/app_exception.dart';
 import '../../../domain/models/wave_data.dart';
@@ -34,16 +35,26 @@ class MonitorController extends ChangeNotifier {
     required this.settingsRepository,
     required this.recordingRepository,
     PitchWorker? worker,
-  }) : _worker = worker ?? PitchWorker();
+    RecordingAnalyzer? recordingAnalyzer,
+  }) : _worker = worker ?? PitchWorker(),
+       _recordingAnalyzer = recordingAnalyzer ?? const RecordingAnalyzer();
   final PlatformService platform;
   final SettingsRepository settingsRepository;
   final RecordingRepository recordingRepository;
   final PitchWorker _worker;
+  final RecordingAnalyzer _recordingAnalyzer;
   MonitorSettings settings = const MonitorSettings();
   ScaleConfig? scale;
   MonitorMode mode = MonitorMode.idle;
   bool initialized = false, busy = false, held = false;
-  AppMessage? message;
+  bool analyzingRecording = false;
+  AppMessage? _message;
+  AppMessage? get message => _message;
+  set message(AppMessage? value) {
+    _message = value;
+    _scheduleMessageDismissal();
+  }
+
   double frequency = 0, level = 0, currentTime = 0, centerCents = 3600;
   ScaleNote? note;
   double deviation = 0;
@@ -64,12 +75,18 @@ class MonitorController extends ChangeNotifier {
   List<SpectrumPoint> get spectra =>
       List.unmodifiable(_heldSpectra ?? _spectra);
   double _heldTime = 0;
-  double _analysisTimeOffset = 0;
+  List<PitchFrame>? _recordingFrames;
+  int _playbackFrameIndex = -1;
+  bool get hasRecordingOverview => _recordingFrames != null;
   final List<double> _smoothedCents = [];
   List<PitchPoint> get history => List.unmodifiable(_heldHistory ?? _history);
-  double get graphTime => held ? _heldTime : currentTime;
-  double get graphSeconds =>
-      (18 / settings.horizontalZoom) * (5 / settings.scrollSpeed);
+  double get graphTime =>
+      hasRecordingOverview ? graphSeconds : (held ? _heldTime : currentTime);
+  double get graphSeconds => hasRecordingOverview
+      ? (duration > 0 ? duration : 1)
+      : (20 / settings.horizontalZoom) * (5 / settings.scrollSpeed);
+  double? get graphPlaybackTime =>
+      hasRecordingOverview ? (held ? _heldTime : currentTime) : null;
   bool get isCapturing =>
       mode == MonitorMode.listening || mode == MonitorMode.recording;
   bool get isRecording => mode == MonitorMode.recording;
@@ -83,10 +100,11 @@ class MonitorController extends ChangeNotifier {
   StreamSubscription<Map<String, Object?>>? _events;
   StreamSubscription<PitchFrame>? _frames;
   Timer? _tick;
+  Timer? _messageTimer;
   BytesBuilder? _recordBuffer;
   int _recordedBytes = 0, _sampleRate = 44100;
   WaveData? _playbackWave;
-  int _playbackOffsetMs = 0, _playbackRead = 0;
+  int _playbackOffsetMs = 0;
   bool _disposed = false, _resumeCapture = false;
   bool _interrupted = false;
   int? _interruptedPositionMs;
@@ -123,6 +141,7 @@ class MonitorController extends ChangeNotifier {
       recordings = await recordingRepository.list();
       if (_disposed) return;
       initialized = true;
+      _scheduleMessageDismissal();
       _tick = Timer.periodic(
         const Duration(milliseconds: 33),
         (_) => _onTick(),
@@ -153,6 +172,14 @@ class MonitorController extends ChangeNotifier {
     _notify();
   }
 
+  void _scheduleMessageDismissal() {
+    _messageTimer?.cancel();
+    _messageTimer = null;
+    // Initialization failures are shown beside Retry, outside the banner.
+    if (_disposed || !initialized || message == null) return;
+    _messageTimer = Timer(const Duration(seconds: 5), clearMessage);
+  }
+
   void clearMessage() {
     message = null;
     _notify();
@@ -175,7 +202,8 @@ class MonitorController extends ChangeNotifier {
     level = 0;
     note = null;
     currentTime = 0;
-    _analysisTimeOffset = 0;
+    _recordingFrames = null;
+    _playbackFrameIndex = -1;
     _smoothedCents.clear();
     _clock
       ..reset()
@@ -253,6 +281,7 @@ class MonitorController extends ChangeNotifier {
       _clock.stop();
       _worker.reset();
       _playbackOffsetMs = 0;
+      if (hasRecordingOverview) currentTime = 0;
       frequency = 0;
       level = 0;
       note = null;
@@ -277,6 +306,8 @@ class MonitorController extends ChangeNotifier {
   Future<void> togglePlayback() => _run(() async {
     if (isPlaying) {
       _playbackOffsetMs = await platform.pausePlayback();
+      currentTime = (_playbackOffsetMs / 1000).clamp(0.0, duration);
+      _updatePlaybackReadout();
       _playbackClock.stop();
       _worker.reset();
       mode = MonitorMode.paused;
@@ -287,14 +318,17 @@ class MonitorController extends ChangeNotifier {
     if (selectedRecording == null) return;
     await platform.stopCapture();
     mode = MonitorMode.idle;
-    _playbackWave ??= await recordingRepository.load(selectedRecording!);
-    if (_playbackOffsetMs == 0) _clearAnalysis();
-    _playbackRead = (_playbackOffsetMs * _playbackWave!.sampleRate ~/ 1000) * 2;
+    if (!hasRecordingOverview) {
+      await _loadRecording(selectedRecording!, wave: _playbackWave);
+      if (_disposed) return;
+    }
     _worker.reset();
     _interruptedPositionMs = null;
     _interrupted = false;
     _smoothedCents.clear();
-    _analysisTimeOffset = _playbackOffsetMs / 1000;
+    _playbackFrameIndex = -1;
+    currentTime = (_playbackOffsetMs / 1000).clamp(0.0, duration);
+    _updatePlaybackReadout();
     await platform.play(selectedRecording!.path, positionMs: _playbackOffsetMs);
     _playbackClock
       ..reset()
@@ -302,29 +336,45 @@ class MonitorController extends ChangeNotifier {
     mode = MonitorMode.playing;
     await platform.setKeepScreenOn(true);
   });
-  Future<void> selectRecording(RecordingEntry entry) => _run(() async {
+  Future<void> selectRecording(RecordingEntry entry) =>
+      _run(() => _loadRecording(entry));
+
+  Future<void> _loadRecording(RecordingEntry entry, {WaveData? wave}) async {
+    _resumeCapture = false;
+    _interrupted = false;
     if (isRecording) await _finishRecording();
     await platform.stopCapture();
     await platform.stopPlayback();
     mode = MonitorMode.idle;
     _clock.stop();
     _playbackClock.stop();
-    await platform.setKeepScreenOn(false);
-    final wave = await recordingRepository.load(entry);
-    selectedRecording = entry;
-    _playbackWave = wave;
-    _playbackOffsetMs = 0;
-    _history.clear();
-    _heldHistory = null;
-    _spectra.clear();
-    _heldSpectra = null;
-    held = false;
     _worker.reset();
-    _smoothedCents.clear();
-    currentTime = 0;
-    frequency = 0;
-    note = null;
-  });
+    await platform.setKeepScreenOn(false);
+    analyzingRecording = true;
+    _notify();
+    try {
+      final audio = wave ?? await recordingRepository.load(entry);
+      final frames = await _recordingAnalyzer.analyze(
+        audio,
+        threshold: settings.threshold,
+      );
+      if (_disposed) return;
+      _clearAnalysis();
+      _clock.stop();
+      selectedRecording = entry;
+      _playbackWave = audio;
+      _playbackOffsetMs = 0;
+      _recordingFrames = frames;
+      for (final frame in frames) {
+        _appendFrame(frame);
+      }
+      _fitHistoryViewport();
+    } finally {
+      analyzingRecording = false;
+      _notify();
+    }
+  }
+
   Future<void> deleteRecording(RecordingEntry entry) => _run(() async {
     if (selectedRecording?.path == entry.path) {
       await platform.stopPlayback();
@@ -336,6 +386,10 @@ class MonitorController extends ChangeNotifier {
       selectedRecording = null;
       _playbackWave = null;
       _playbackOffsetMs = 0;
+      if (hasRecordingOverview) {
+        _clearAnalysis();
+        _clock.stop();
+      }
     }
     await recordingRepository.delete(entry);
     recordings = await recordingRepository.list();
@@ -346,11 +400,7 @@ class MonitorController extends ChangeNotifier {
     final wave = WaveData.decode(file.bytes);
     final entry = await recordingRepository.save(wave, name: file.name);
     recordings = await recordingRepository.list();
-    if (!isCapturing && !isPlaying) {
-      selectedRecording = entry;
-      _playbackWave = wave;
-      _playbackOffsetMs = 0;
-    }
+    await _loadRecording(entry, wave: wave);
     message = AppMessage(
       (strings) => strings.noticeRecordingImported(entry.name),
     );
@@ -427,6 +477,59 @@ class MonitorController extends ChangeNotifier {
     _notify();
   }
 
+  Future<void> fitPitchRangeAndFollow() => _run(() async {
+    settings = settings.withValue('autoScroll', true);
+    _historyViewport.reset();
+    if (settings.showSpectrum) {
+      _fitSpectrumViewport();
+    } else {
+      _fitHistoryViewport(includeHeld: true);
+    }
+    if (scale != null) await settingsRepository.save(settings, scale!);
+  });
+
+  void _fitSpectrumViewport() {
+    final points = _heldSpectra ?? _spectra;
+    final time = math.max(
+      graphTime,
+      points.isEmpty ? 0.0 : points.last.seconds,
+    );
+    final peaks = Uint8List(LogSpectrum.bands);
+    var peak = 0;
+    for (final point in points) {
+      if (point.seconds < time - graphSeconds || point.seconds > time) continue;
+      for (var band = 0; band < peaks.length; band++) {
+        peaks[band] = math.max(peaks[band], point.bands[band]);
+        peak = math.max(peak, peaks[band]);
+      }
+    }
+    // Ignore background below -60 dBFS or 40 dB below the visible peak.
+    final threshold = math.max(85, peak - 255 * 40 / -LogSpectrum.floorDb);
+    final low = peaks.indexWhere((value) => value >= threshold);
+    if (low < 0) return;
+    final high = peaks.lastIndexWhere((value) => value >= threshold);
+    final fullRange = LogSpectrum.maxCents - LogSpectrum.minCents;
+    final fitted = HistoryViewport().fit(
+      pitches: [
+        LogSpectrum.minCents + low * LogSpectrum.centsPerBand,
+        LogSpectrum.minCents + (high + 1) * LogSpectrum.centsPerBand,
+      ],
+      time: time,
+      center: centerCents,
+      range: fullRange / settings.verticalZoom,
+      minimumRange: fullRange / MonitorSettings.maxVerticalZoom,
+    );
+    final range = fitted.range.clamp(
+      fullRange / MonitorSettings.maxVerticalZoom,
+      fullRange,
+    );
+    centerCents = fitted.center.clamp(
+      LogSpectrum.minCents + range / 2,
+      LogSpectrum.maxCents - range / 2,
+    );
+    settings = settings.withValue('verticalZoom', fullRange / range);
+  }
+
   void adjustPitchRange({
     required double center,
     required double zoom,
@@ -463,7 +566,25 @@ class MonitorController extends ChangeNotifier {
   }
 
   void _onFrame(PitchFrame frame) {
-    if (_disposed || (!isCapturing && !isPlaying)) return;
+    if (_disposed || !isCapturing) return;
+    _updateFrameReadout(frame);
+    _appendFrame(frame);
+    if (_spectra.length > 2700) {
+      _spectra.removeRange(0, _spectra.length - 2700);
+    }
+    if (_history.length > 2700) _history.removeRange(0, _history.length - 2700);
+    if (!held) {
+      if (settings.showSpectrum && settings.autoScroll && frame.frequency > 0) {
+        final cents = frequencyToCents(frame.frequency);
+        final margin = 600 / settings.verticalZoom;
+        if ((cents - centerCents).abs() > margin) centerCents = cents;
+      }
+      _fitHistoryViewport();
+    }
+    _notify();
+  }
+
+  void _updateFrameReadout(PitchFrame frame) {
     final voiced = frame.frequency > 0 && frame.frequency.isFinite;
     level = frame.level;
     final cents = voiced ? frequencyToCents(frame.frequency) : null;
@@ -485,40 +606,59 @@ class MonitorController extends ChangeNotifier {
         );
       }
     }
-    _history.add(PitchPoint(_analysisTimeOffset + frame.timeSeconds, cents));
+    if (!held) _updateNote();
+  }
+
+  void _appendFrame(PitchFrame frame) {
+    final cents = frame.frequency > 0 && frame.frequency.isFinite
+        ? frequencyToCents(frame.frequency)
+        : null;
+    _history.add(PitchPoint(frame.timeSeconds, cents));
     final spectrum = frame.spectrum;
     if (spectrum != null && spectrum.length == LogSpectrum.bands) {
       _spectra.add(
-        SpectrumPoint(
-          _spectrumSequence++,
-          _analysisTimeOffset + frame.timeSeconds,
-          spectrum,
-        ),
+        SpectrumPoint(_spectrumSequence++, frame.timeSeconds, spectrum),
       );
-      if (_spectra.length > 2700) {
-        _spectra.removeRange(0, _spectra.length - 2700);
-      }
     }
-    if (_history.length > 2700) _history.removeRange(0, _history.length - 2700);
-    if (!held) {
-      _updateNote();
-      if (settings.showSpectrum && settings.autoScroll && cents != null) {
-        final margin = 600 / settings.verticalZoom;
-        if ((cents - centerCents).abs() > margin) centerCents = cents;
-      }
-      _fitHistoryViewport();
-    }
-    _notify();
   }
 
-  void _fitHistoryViewport() {
-    if (held || !settings.autoScroll || settings.showSpectrum) return;
+  void _updatePlaybackReadout() {
+    final frames = _recordingFrames;
+    if (frames == null || held) return;
+    var low = 0, high = frames.length;
+    while (low < high) {
+      final middle = (low + high) ~/ 2;
+      if (frames[middle].timeSeconds <= currentTime) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+    final index = low - 1;
+    if (index == _playbackFrameIndex) return;
+    _playbackFrameIndex = index;
+    _smoothedCents.clear();
+    frequency = 0;
+    level = 0;
+    for (var i = math.max(0, index - settings.smoothing + 1); i <= index; i++) {
+      _updateFrameReadout(frames[i]);
+    }
+    _updateNote();
+  }
+
+  void _fitHistoryViewport({bool includeHeld = false}) {
+    if ((held && !includeHeld) ||
+        !settings.autoScroll ||
+        settings.showSpectrum) {
+      return;
+    }
+    final points = _heldHistory ?? _history;
     final time = math.max(
       graphTime,
-      _history.isEmpty ? 0.0 : _history.last.seconds,
+      points.isEmpty ? 0.0 : points.last.seconds,
     );
     final fitted = _historyViewport.fit(
-      pitches: _history
+      pitches: points
           .where((point) => point.seconds >= time - graphSeconds)
           .map((point) => point.cents)
           .whereType<double>(),
@@ -563,20 +703,34 @@ class MonitorController extends ChangeNotifier {
           _playbackOffsetMs = 0;
           currentTime = duration;
           frequency = 0;
+          level = 0;
           note = null;
           unawaited(platform.setKeepScreenOn(false));
           _notify();
         }
       case 'interrupted':
-        _interrupted = true;
-        _resumeCapture = false;
         if (event['positionMs'] case final num position) {
           _interruptedPositionMs = position.toInt();
+          if (mode == MonitorMode.paused) {
+            _playbackOffsetMs = position.toInt();
+            currentTime = (_playbackOffsetMs / 1000).clamp(0.0, duration);
+            _updatePlaybackReadout();
+          }
         }
+        if (event['reason'] == 'background') {
+          // Native audio cleanup can arrive before or after the lifecycle
+          // pause. Both paths preserve the intent to resume live monitoring.
+          unawaited(suspend());
+          return;
+        }
+        _interrupted = true;
+        _resumeCapture = false;
         if (isPlaying || mode == MonitorMode.paused) {
           _playbackOffsetMs =
               _interruptedPositionMs ??
               (_playbackOffsetMs + _playbackClock.elapsedMilliseconds);
+          currentTime = (_playbackOffsetMs / 1000).clamp(0.0, duration);
+          _updatePlaybackReadout();
           _playbackClock.stop();
           _worker.reset();
           mode = MonitorMode.paused;
@@ -603,28 +757,10 @@ class MonitorController extends ChangeNotifier {
     if (_disposed) return;
     if (isCapturing) currentTime = _clock.elapsedMicroseconds / 1000000;
     if (isPlaying && _playbackWave != null) {
-      final wave = _playbackWave!;
       final milliseconds =
           _playbackOffsetMs + _playbackClock.elapsedMilliseconds;
-      currentTime = milliseconds / 1000;
-      final target =
-          math.min(
-            wave.pcm.length,
-            milliseconds * wave.sampleRate ~/ 1000 * 2,
-          ) &
-          ~1;
-      if (target > _playbackRead) {
-        // Bound catch-up work after a stalled frame; the worker discards old
-        // queued blocks if necessary while maintaining the source timeline.
-        while (_playbackRead < target) {
-          final end = math.min(target, _playbackRead + 32768);
-          _worker.addPcm(
-            Uint8List.sublistView(wave.pcm, _playbackRead, end),
-            wave.sampleRate,
-          );
-          _playbackRead = end;
-        }
-      }
+      currentTime = (milliseconds / 1000).clamp(0.0, duration);
+      _updatePlaybackReadout();
     }
     if (isCapturing || isPlaying) {
       final progress = currentTime * settings.bpm / 60;
@@ -632,17 +768,20 @@ class MonitorController extends ChangeNotifier {
           ? 0
           : progress.floor() % settings.beatsPerBar;
       beatPhase = progress % 1;
-      _fitHistoryViewport();
+      if (!hasRecordingOverview) _fitHistoryViewport();
       _notify();
     }
   }
 
   Future<void> suspend() => _run(() async {
-    _resumeCapture = isCapturing && !_interrupted;
+    // Duplicate pauses must not discard the capture state from the first one.
+    _resumeCapture = (_resumeCapture || isCapturing) && !_interrupted;
     try {
       if (isPlaying) {
         final nativePosition = await platform.pausePlayback();
         _playbackOffsetMs = _interruptedPositionMs ?? nativePosition;
+        currentTime = (_playbackOffsetMs / 1000).clamp(0.0, duration);
+        _updatePlaybackReadout();
         mode = MonitorMode.paused;
         _playbackClock.stop();
       } else if (mode != MonitorMode.paused) {
@@ -666,6 +805,7 @@ class MonitorController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _tick?.cancel();
+    _messageTimer?.cancel();
     unawaited(_events?.cancel());
     unawaited(_frames?.cancel());
     unawaited(_worker.dispose());

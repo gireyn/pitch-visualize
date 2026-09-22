@@ -242,23 +242,159 @@ void main() {
         expect(platform.keepScreenOn, isFalse);
         expect(controller.mode, MonitorMode.idle);
         expect(controller.message!.resolve(strings), contains('Storage full'));
+        if (background) {
+          await controller.resume();
+          expect(controller.mode, MonitorMode.listening);
+          expect(controller.hasPendingRecording, isTrue);
+          expect(
+            controller.message!.resolve(strings),
+            contains('Storage full'),
+          );
+        }
       },
     );
   }
 
+  for (final nativeFirst in [true, false]) {
+    for (final recording in [false, true]) {
+      test(
+        'background interruption ${nativeFirst ? 'before' : 'after'} lifecycle '
+        'pause restores ${recording ? 'recording as listening' : 'listening'}',
+        () async {
+          await controller.initialize();
+          final samples = Uint8List.fromList([1, 0, 2, 0]);
+          if (recording) {
+            await controller.toggleRecording();
+            platform.pcm(samples);
+          }
+          if (!nativeFirst) await controller.suspend();
+          platform.eventController.add({
+            'type': 'interrupted',
+            'reason': 'background',
+          });
+          await controller.suspend();
+          expect(controller.mode, MonitorMode.idle);
+          expect(platform.capturing, isFalse);
+          expect(platform.keepScreenOn, isFalse);
+          if (recording) {
+            expect(controller.recordings, hasLength(1));
+            expect(
+              (await recordings.load(controller.selectedRecording!)).pcm,
+              samples,
+            );
+            expect(
+              controller.message!.resolve(strings),
+              strings.noticeRecordingSaved(controller.selectedRecording!.name),
+            );
+          } else {
+            expect(controller.message, isNull);
+          }
+
+          await controller.resume();
+          await controller.resume();
+          expect(controller.mode, MonitorMode.listening);
+          expect(platform.capturing, isTrue);
+          expect(platform.keepScreenOn, isTrue);
+          expect(
+            platform.calls.where((call) => call == 'startCapture'),
+            hasLength(2),
+          );
+          platform.pcm(samples);
+          worker.frame(440, 1 / 30);
+          expect(worker.blocks.last, samples);
+          expect(controller.frequency, closeTo(440, 1e-9));
+          expect(controller.recordings, hasLength(recording ? 1 : 0));
+        },
+      );
+    }
+
+    test('background playback position ${nativeFirst ? 'before' : 'after'} '
+        'lifecycle pause is retained without starting capture', () async {
+      final entry = await recordings.save(
+        WaveData(pcm: Uint8List(44100 * 2), sampleRate: 44100),
+      );
+      await controller.initialize();
+      await controller.selectRecording(entry);
+      await controller.togglePlayback();
+      if (!nativeFirst) await controller.suspend();
+      platform.eventController.add({
+        'type': 'interrupted',
+        'reason': 'background',
+        'positionMs': 450,
+      });
+      await controller.suspend();
+      await controller.resume();
+      expect(controller.mode, MonitorMode.paused);
+      expect(platform.capturing, isFalse);
+      expect(platform.keepScreenOn, isFalse);
+      expect(controller.message, isNull);
+      await controller.togglePlayback();
+      expect(
+        platform.calls.lastWhere((call) => call.startsWith('play:')),
+        'play:450',
+      );
+    });
+  }
+
+  test('repeated lifecycle pauses preserve capture recovery', () async {
+    await controller.initialize();
+    await controller.suspend();
+    await controller.suspend();
+    await controller.resume();
+    expect(controller.mode, MonitorMode.listening);
+    expect(platform.capturing, isTrue);
+  });
+
+  test('explicit stop cancels capture recovery from the background', () async {
+    await controller.initialize();
+    await controller.suspend();
+    await controller.stop();
+    platform.eventController.add({
+      'type': 'interrupted',
+      'reason': 'background',
+    });
+    await controller.resume();
+    expect(controller.mode, MonitorMode.idle);
+    expect(platform.capturing, isFalse);
+  });
+
   test(
-    'interruption overrides automatic resume from an already queued suspend',
+    'failed foreground capture reports the error and permits retry',
     () async {
       await controller.initialize();
-      await controller.startListening();
-      final suspending = controller.suspend();
-      platform.eventController.add({'type': 'interrupted'});
-      await suspending;
+      platform.eventController.add({
+        'type': 'interrupted',
+        'reason': 'background',
+      });
+      await controller.suspend();
+      platform.captureError = PlatformException(
+        code: 'captureFailed',
+        message: 'Microphone unavailable',
+      );
       await controller.resume();
       expect(controller.mode, MonitorMode.idle);
       expect(platform.capturing, isFalse);
+      expect(platform.keepScreenOn, isFalse);
+      expect(controller.busy, isFalse);
+      expect(controller.message!.resolve(strings), contains('Microphone'));
+      platform.captureError = null;
+      await controller.startListening();
+      expect(controller.mode, MonitorMode.listening);
+      expect(platform.capturing, isTrue);
+      expect(controller.message, isNull);
     },
   );
+
+  test('audio interruption overrides automatic resume from an already queued suspend', () async {
+    await controller.initialize();
+    await controller.startListening();
+    final suspending = controller.suspend();
+    platform.eventController.add({'type': 'interrupted'});
+    await suspending;
+    await controller.resume();
+    expect(controller.mode, MonitorMode.idle);
+    expect(platform.capturing, isFalse);
+  });
 
   test(
     'backgrounding a recording saves it then resumes in listening mode',
@@ -320,14 +456,14 @@ void main() {
     expect(controller.centerCents + expandedRange / 2, greaterThan(8400));
     expect(controller.settings.verticalZoom, 1);
     expect(controller.history.length, 2);
-    for (var i = 2; i <= 18; i++) {
+    for (var i = 2; i <= 20; i++) {
       worker.frame(centsToFrequency(8400), i.toDouble());
     }
     expect(controller.historyRange, expandedRange);
-    worker.frame(centsToFrequency(8400), 19);
-    worker.frame(centsToFrequency(8400), 20);
-    expect(controller.historyRange, expandedRange);
     worker.frame(centsToFrequency(8400), 21);
+    worker.frame(centsToFrequency(8400), 22);
+    expect(controller.historyRange, expandedRange);
+    worker.frame(centsToFrequency(8400), 23);
     expect(controller.historyRange, 2400);
   });
 
@@ -437,8 +573,13 @@ void main() {
       worker.frame(440, 1 / 30, spectrum: Uint8List(LogSpectrum.bands));
       controller.toggleHold();
       await controller.selectRecording(entry);
-      expect(controller.history, isEmpty);
-      expect(controller.spectra, isEmpty);
+      expect(controller.history, hasLength(1));
+      expect(controller.history.single.cents, isNull);
+      expect(controller.spectra, hasLength(1));
+      expect(
+        controller.spectra.single.bands.every((value) => value == 0),
+        isTrue,
+      );
       expect(controller.held, isFalse);
       expect(controller.currentTime, 0);
       expect(controller.selectedRecording!.path, entry.path);

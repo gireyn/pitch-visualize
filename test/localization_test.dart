@@ -83,9 +83,7 @@ void main() {
       PitchVisualApp(controller: model, initialize: false),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('更多选项'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('设置'));
+    await tester.tap(find.byTooltip('设置'));
     await tester.pumpAndSettle();
     expect(find.text('选择调律'), findsOneWidget);
 
@@ -205,9 +203,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await tester.tap(find.byTooltip('More options'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Settings'));
+      await tester.tap(find.byTooltip('Settings'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       // Exercise the bottom sections as well as controls near the top.
