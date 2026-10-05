@@ -1,4 +1,7 @@
-# VocalPitchMonitor (no-ads) — with musescore-xen-tuner scale configs
+# Pitch Visual — Android pitch monitor with musescore-xen-tuner scale configs
+
+*(formerly VocalPitchMonitor; the launcher label is **Pitch Visual**, the package id stays
+`com.tadaoyamaoka.vocalpitchmonitor` so it upgrades over an existing install)*
 
 An Android pitch monitor app built from scratch (pure Java, no Gradle, no
 third-party SDKs) that is behaviorally and visually alike the original
@@ -49,6 +52,17 @@ Build output: `VocalPitchMonitor-NoAds.apk` (signed, installable).
     is R=G=B in 0..255 (136 → RGB(136,136,136)). A missing line falls back
     to the same defaults (first note 136, the others 84); a shorter list
     wraps around from the start.
+  - optional per-note **line-thickness** row: `6t 8t 6t …` — one value per
+    scale note, again without the next-period note. The trailing `t` marks
+    the row and is ignored by the arithmetic; one unit of thickness is 1/4
+    of the value before it, so `8t` = 2.0 units, `7t` = 1.75, `6t` = 1.5,
+    `7.5t` = 1.875, `13/2t` (= `6.5t`) = 1.625 and `5*Math.LN2t` ≈ 0.866.
+    Anything the general expression evaluator accepts is allowed, and only
+    that: pitch syntax (`\`, `ed`, the `c`/`me` suffixes, the `ie` prefix)
+    is a parse error here, as is a wrong value count or a half-written row.
+    Neither the colour row nor this row is required, and they may appear in
+    either order; without the thickness row the classic defaults apply —
+    2.0 units (8t) for the first note and 1.5 units (6t) for the others.
   - `//` comments and blank lines ignored, UTF-8 (BOM tolerated)
 - **Note colors come from the tuning config**: each scale note's grid row and
   left-column label are drawn in its config color. The old "Scale" and
@@ -61,12 +75,26 @@ Build output: `VocalPitchMonitor-NoAds.apk` (signed, installable).
   shows a fixed ±(1200/7)-cent window — the ratio 2^(±1/7) — around the
   detected pitch: long ticks sit exactly on the scale notes (name + register
   below) and five short ticks between every adjacent pair of notes divide
-  the log-pitch interval into six equal parts.
+  the log-pitch interval into six equal parts. Tick height and thickness are
+  fixed constants (major 7 × 2.0, minor 4 × 1.5 view units), while their
+  **colours follow the config**: a major tick and its marking text use
+  `grayv(clamp(round(r / 136 * 255)))` with `r` the note's colour value
+  (136 → white, 84 → RGB(158,158,158), 42 → RGB(79,79,79)), and every minor
+  tick uses `grayv(round(clamp(round(rMin / 136 * 255)) / 2))` from the
+  dimmest value in the colour row (42 → RGB(40,40,40)), where
+  `clamp(x) = min(max(x, 0), 255)` and `grayv(v)` is RGB(v, v, v).
+- **"Hearing now" dot**: the pitch-history line ends in a filled dot whose
+  radius is 1.5 view units — three line thicknesses across — in the same
+  colour as the line; it is drawn only while a pitch is actually detected.
 - "Semitone" is not meaningful for arbitrary tuning scales: the two semitone
   settings ("Indicate lines of a semitone", "Display semitones on the
   vertical axis") were removed from Settings and are always off. The
   "Display frequency in Hz" option is on by default (also applied once when
   upgrading an older install).
+- The old fixed 12-EDO **standard view** is gone entirely (renderer, its
+  scale-degree/chromatic/semitone colours, the note-name mode and the
+  octave-number setting): the app always renders the active tuning config,
+  and shows an empty black screen only if no config can be loaded at all.
 
 ## Project layout
 

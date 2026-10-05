@@ -21,17 +21,8 @@ public class Settings {
     public static int CALIBRATION_DEFAULT = 440;
     public static int CALIBRATION_MAX = 450;
     public static int CALIBRATION_MIN = 430;
-    public static int COLOR_1_DEFAULT = -8355712;
-    public static int COLOR_2_DEFAULT = -12566464;
-    public static int COLOR_3_DEFAULT = -12566464;
-    public static int COLOR_4_DEFAULT = -12566464;
-    public static int COLOR_5_DEFAULT = -12566464;
-    public static int COLOR_6_DEFAULT = -12566464;
-    public static int COLOR_7_DEFAULT = -12566464;
-    public static int COLOR_CHROMATIC_DEFAULT = -12566464;
     public static int COLOR_METRONOME_DEFAULT = -16777088;
     public static int COLOR_PITCH_DEFAULT = -256;
-    public static int COLOR_SEMITONE_DEFAULT = -14671840;
     public static int COLOR_TEMPO_DEFAULT = -12566464;
     public static boolean DISPLAY_BPM_DEFAULT = false;
     public static boolean DISPLAY_BUTTON_HOLD_DEFAULT = true;
@@ -41,15 +32,11 @@ public class Settings {
     public static boolean DISPLAY_METRONOME_DEFAULT = false;
     // "Semitone" is not well defined for arbitrary tuning scales: the toggles
     // were removed from the settings UI and stay off for good.
-    public static boolean DISPLAY_SEMITONE_DEFAULT = false;
     public static boolean DISPLAY_TUNER_DEFAULT = true;
     public static float HORIZONTAL_ZOOMING_DEFAULT = 1.0f;
     public static float HORIZONTAL_ZOOMING_MAX = 2.0f;
     public static float HORIZONTAL_ZOOMING_MIN = 1.0f;
-    public static boolean INDICATE_SEMITONE_DEFAULT = false;
     public static String METER_DEFAULT = "4/4";
-    public static String NOTE_NAME_DEFAULT = "english";
-    public static String OCTAVE_NUMBER_DEFAULT = "A4";
     public static String SCALE_DEFAULT = "7ed2 on C";
     public static int SCROLL_SPEED_DEFAULT = 5;
     public static int SCROLL_SPEED_MAX = 10;
@@ -77,17 +64,8 @@ public class Settings {
     public static final String PREF_KEY_BOTTOM_CENT = "key_bottom_cent";
     public static final String PREF_KEY_BPM = "key_bpm";
     public static final String PREF_KEY_CALIBRATION = "key_calibration";
-    public static final String PREF_KEY_COLOR_1 = "key_color_1";
-    public static final String PREF_KEY_COLOR_2 = "key_color_2";
-    public static final String PREF_KEY_COLOR_3 = "key_color_3";
-    public static final String PREF_KEY_COLOR_4 = "key_color_4";
-    public static final String PREF_KEY_COLOR_5 = "key_color_5";
-    public static final String PREF_KEY_COLOR_6 = "key_color_6";
-    public static final String PREF_KEY_COLOR_7 = "key_color_7";
-    public static final String PREF_KEY_COLOR_CHROMATIC = "key_color_chromatic";
     public static final String PREF_KEY_COLOR_METRONOME = "key_color_Metronome";
     public static final String PREF_KEY_COLOR_PITCH = "key_color_pitch";
-    public static final String PREF_KEY_COLOR_SEMITONE = "key_color_semitone";
     public static final String PREF_KEY_COLOR_TEMPO = "key_color_tempo";
     public static final String PREF_KEY_DISPLAY_BPM = "key_display_bpm";
     public static final String PREF_KEY_DISPLAY_BUTTON_HOLD = "key_display_button_hold";
@@ -95,13 +73,9 @@ public class Settings {
     public static final String PREF_KEY_DISPLAY_BUTTON_TEMPO = "key_display_button_tempo";
     public static final String PREF_KEY_DISPLAY_HZ = "key_display_hz";
     public static final String PREF_KEY_DISPLAY_METRONOME = "key_display_metronome";
-    public static final String PREF_KEY_DISPLAY_SEMITONE = "key_display_semitone";
     public static final String PREF_KEY_DISPLAY_TUNER = "key_display_tuner";
     public static final String PREF_KEY_HORIZONTAL_ZOOMING = "key_horizontal_zooming";
-    public static final String PREF_KEY_INDICATE_SEMITONE = "key_indicate_semitone";
     public static final String PREF_KEY_METER = "key_meter";
-    public static final String PREF_KEY_NOTE_NAME = "key_note_name";
-    public static final String PREF_KEY_OCTAVE_NUMBER = "key_octave_number";
     public static final String PREF_KEY_SCALE = "key_scale";
     public static final String PREF_KEY_SCROLL_SPEED = "key_scroll_speed";
     public static final String PREF_KEY_THRESHOLD = "key_threshold";
@@ -217,30 +191,6 @@ public class Settings {
         getEditor().putInt(PREF_KEY_BOTTOM_CENT, i);
     }
 
-    public boolean getIndicateSemitone() {
-        return this.pref.getBoolean(PREF_KEY_INDICATE_SEMITONE, INDICATE_SEMITONE_DEFAULT);
-    }
-
-    public void setIndicateSemitone(boolean z) {
-        getEditor().putBoolean(PREF_KEY_INDICATE_SEMITONE, z);
-    }
-
-    public boolean getDisplaySemitone() {
-        return this.pref.getBoolean(PREF_KEY_DISPLAY_SEMITONE, DISPLAY_SEMITONE_DEFAULT);
-    }
-
-    public void setDisplaySemitone(boolean z) {
-        getEditor().putBoolean(PREF_KEY_DISPLAY_SEMITONE, z);
-    }
-
-    public String getOctaveNumber() {
-        return this.pref.getString(PREF_KEY_OCTAVE_NUMBER, OCTAVE_NUMBER_DEFAULT);
-    }
-
-    public void setOctaveNumber(String str) {
-        getEditor().putString(PREF_KEY_OCTAVE_NUMBER, str);
-    }
-
     public int getCalibration() {
         int i = this.pref.getInt(PREF_KEY_CALIBRATION, CALIBRATION_DEFAULT);
         return (i < CALIBRATION_MIN || i > CALIBRATION_MAX) ? CALIBRATION_DEFAULT : i;
@@ -299,14 +249,6 @@ public class Settings {
 
     public void setTunerSmooth(int i) {
         getEditor().putInt(PREF_KEY_TUNER_SMOOTH, i);
-    }
-
-    public String getNoteName() {
-        return this.pref.getString(PREF_KEY_NOTE_NAME, NOTE_NAME_DEFAULT);
-    }
-
-    public void setNoteName(String str) {
-        getEditor().putString(PREF_KEY_NOTE_NAME, str);
     }
 
     public boolean getDisplayBpm() {
@@ -398,75 +340,4 @@ public class Settings {
         getEditor().putInt(PREF_KEY_COLOR_METRONOME, i);
     }
 
-    public int getColor1() {
-        return this.pref.getInt(PREF_KEY_COLOR_1, COLOR_1_DEFAULT);
-    }
-
-    public void setColor1(int i) {
-        getEditor().putInt(PREF_KEY_COLOR_1, i);
-    }
-
-    public int getColor2() {
-        return this.pref.getInt(PREF_KEY_COLOR_2, COLOR_2_DEFAULT);
-    }
-
-    public void setColor2(int i) {
-        getEditor().putInt(PREF_KEY_COLOR_2, i);
-    }
-
-    public int getColor3() {
-        return this.pref.getInt(PREF_KEY_COLOR_3, COLOR_3_DEFAULT);
-    }
-
-    public void setColor3(int i) {
-        getEditor().putInt(PREF_KEY_COLOR_3, i);
-    }
-
-    public int getColor4() {
-        return this.pref.getInt(PREF_KEY_COLOR_4, COLOR_4_DEFAULT);
-    }
-
-    public void setColor4(int i) {
-        getEditor().putInt(PREF_KEY_COLOR_4, i);
-    }
-
-    public int getColor5() {
-        return this.pref.getInt(PREF_KEY_COLOR_5, COLOR_5_DEFAULT);
-    }
-
-    public void setColor5(int i) {
-        getEditor().putInt(PREF_KEY_COLOR_5, i);
-    }
-
-    public int getColor6() {
-        return this.pref.getInt(PREF_KEY_COLOR_6, COLOR_6_DEFAULT);
-    }
-
-    public void setColor6(int i) {
-        getEditor().putInt(PREF_KEY_COLOR_6, i);
-    }
-
-    public int getColor7() {
-        return this.pref.getInt(PREF_KEY_COLOR_7, COLOR_7_DEFAULT);
-    }
-
-    public void setColor7(int i) {
-        getEditor().putInt(PREF_KEY_COLOR_7, i);
-    }
-
-    public int getColorSemitone() {
-        return this.pref.getInt(PREF_KEY_COLOR_SEMITONE, COLOR_SEMITONE_DEFAULT);
-    }
-
-    public void setColorSemitone(int i) {
-        getEditor().putInt(PREF_KEY_COLOR_SEMITONE, i);
-    }
-
-    public int getColorChromatic(int i) {
-        return this.pref.getInt(PREF_KEY_COLOR_CHROMATIC + i, COLOR_CHROMATIC_DEFAULT);
-    }
-
-    public void setColorChromatic(int i, int i2) {
-        getEditor().putInt(PREF_KEY_COLOR_CHROMATIC + i, i2);
-    }
 }

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">VocalPitchMonitor</string>
+    <string name="app_name">Pitch Visual</string>
     <string name="action_default">Default</string>
     <string name="action_delete">Delete</string>
     <string name="action_import">Import</string>

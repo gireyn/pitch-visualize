@@ -33,12 +33,18 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
      */
     private static final float TUNER_HALF_WINDOW_CENTS = 1200.0f / 7.0f;
     private static int margin = 10;
-    private static String[] note_str = null;
-    private static final String[] note_str_english;
     private static final float y_per_cent0 = 0.26666668f;
     private static final float zoom_x0 = 2.0f;
+    /* Tuner strip tick geometry: fixed by design, independent of zoom. */
+    private static final float TICK_TOP = 1.0f;
+    private static final float TICK_MAJOR_HEIGHT = 7.0f;
+    private static final float TICK_MAJOR_WIDTH = 2.0f;
+    private static final float TICK_MINOR_HEIGHT = 4.0f;
+    private static final float TICK_MINOR_WIDTH = 1.5f;
+    /** Pitch history line width; the "hearing now" dot is 3x as thick. */
+    private static final float PITCH_LINE_WIDTH = 1.0f;
+    private static final float PITCH_DOT_RADIUS = (PITCH_LINE_WIDTH * 3.0f) / 2.0f;
     private static float x0 = 10 + 16.0f;
-    private static final String[] note_sharp = {"", "♯", "", "♯", "", "", "♯", "", "♯", "", "♯", ""};
 
     private Analyzer analyzer;
     private boolean auto_scroll;
@@ -48,23 +54,15 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     private int bottom_cent;
     private int bpm;
     private float cent_calibrated;
-    private int[] color;
-    private int[] colorChromatic;
     private int colorMetronome;
     private int colorPitch;
-    private int colorSemitone;
     private int colorTempo;
     private boolean display_bpm;
     private boolean display_hz;
     private boolean display_metronome;
-    private boolean display_semitone;
     private boolean display_tuner;
     private SurfaceHolder holder;
-    private boolean indicate_semitone;
-    private boolean isChromatic;
-    private boolean isMajor;
     private int meter;
-    private int octave_offset;
     private Paint paint;
     Path pathTuner;
     private double[] peak_freq_buf;
@@ -73,9 +71,7 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     private float pre_y;
     private float[] pts;
     private float scale;
-    private int scale_key;
     private Timer timer;
-    private boolean traditional;
     private int velocity;
     private int velocity_diff;
     private float view_height;
@@ -87,12 +83,6 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
 
     /** Active imported tuning config; null = standard 12-EDO mode. */
     private ScaleConfig scaleConfig = null;
-
-    static {
-        String[] strArr = {"C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B"};
-        note_str_english = strArr;
-        note_str = strArr;
-    }
 
     public MainSurfaceView(Context context) {
         super(context);
@@ -116,21 +106,14 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         this.bZoomingX = false;
         this.bZoomingY = false;
         this.bDragging = false;
-        this.indicate_semitone = false;
-        this.display_semitone = false;
-        this.octave_offset = 1;
         this.cent_calibrated = 0.0f;
         this.auto_scroll = true;
         this.display_hz = false;
         this.display_tuner = true;
-        this.traditional = false;
         this.display_bpm = false;
         this.bpm = 0;
         this.display_metronome = false;
         this.meter = 0;
-        this.scale_key = 0;
-        this.isMajor = true;
-        this.isChromatic = false;
         this.peak_freq_buf = new double[3];
         this.peak_freq_buf_pos = 0;
         init();
@@ -210,59 +193,33 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         }
     }
 
-    /** Activate an imported tuning config (custom-scale mode), or null for standard mode. */
+    /** Activate a tuning config; null leaves the canvas black (no scale). */
     public void updateScaleConfig(ScaleConfig config) {
         this.scaleConfig = config;
-        if (config != null) {
-            // map scale names onto the 12 semitone slots for any fallback labels
-            String[] mapped = new String[12];
-            for (int s = 0; s < 12; s++) {
-                int best = 0;
-                double bestDev = Double.MAX_VALUE;
-                for (int i = 0; i < config.cents.length; i++) {
-                    double dev = Math.abs(config.cents[i] - s * 100.0);
-                    if (dev < bestDev) {
-                        bestDev = dev;
-                        best = i;
-                    }
-                }
-                mapped[s] = config.names[best];
-            }
-            note_str = mapped;
-        }
-        this.isChromatic = false;
         recomputeColumnX();
     }
 
     /**
-     * Left-edge x of the note column / grid. In custom mode the column is
-     * sized from the widest label (note name + two-digit register) so wide
-     * glyphs such as 甲/癸 are never clipped at the screen edge; in the
-     * standard mode it keeps the original letter/traditional width.
+     * Left-edge x of the note column / grid, sized from the widest label of the
+     * active config (note name + two-digit register) so wide glyphs such as
+     * 甲/癸 are never clipped at the screen edge.
      */
     private void recomputeColumnX() {
         this.paint.setTextSize(FONT_SIZE);
         ScaleConfig cfg = this.scaleConfig;
-        if (cfg != null) {
-            float maxName = 0.0f;
-            for (int i = 0; i < cfg.names.length; i++) {
-                float w = this.paint.measureText(cfg.names[i]);
-                if (w > maxName) {
-                    maxName = w;
-                }
-            }
-            float digits = this.paint.measureText("88");
-            this.x0 = maxName + digits + 8.0f;
+        if (cfg == null) {
+            this.x0 = margin + 16.0f;
             return;
         }
-        if (!this.traditional) {
-            this.x0 = margin + 16.0f;
-        } else {
-            this.x0 = margin + 24.0f;
+        float maxName = 0.0f;
+        for (int i = 0; i < cfg.names.length; i++) {
+            float w = this.paint.measureText(cfg.names[i]);
+            if (w > maxName) {
+                maxName = w;
+            }
         }
-        if (this.display_semitone) {
-            this.x0 += 8.0f;
-        }
+        float digits = this.paint.measureText("88");
+        this.x0 = maxName + digits + 8.0f;
     }
 
     public boolean isCustomScale() {
@@ -273,138 +230,20 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         Canvas canvas = this.holder.lockCanvas();
         if (canvas != null) {
             try {
+                // Config-driven rendering only: the old fixed 12-EDO standard
+                // view (and its semitone handling) is gone. With no config
+                // loaded the canvas stays black; MainActivity always falls back
+                // to the bundled config and says so if that fails.
                 if (this.scaleConfig != null) {
                     drawCustom(canvas);
                 } else {
-                    drawStandard(canvas);
+                    canvas.scale(this.scale, this.scale);
+                    canvas.drawColor(0xFF000000);
                 }
             } finally {
                 this.holder.unlockCanvasAndPost(canvas);
             }
         }
-    }
-
-    /* ====================================================================
-     * Standard 12-EDO mode — faithful port of the original drawing code.
-     * ==================================================================== */
-    private void drawStandard(Canvas lockCanvas) {
-        lockCanvas.scale(this.scale, this.scale);
-        lockCanvas.drawColor(0xFF000000);
-        this.paint.setStrokeCap(Paint.Cap.BUTT);
-        double d2 = this.analyzer.get_peak_freq();
-        float freq_to_cent = Analyzer.freq_to_cent(d2);
-        if (freq_to_cent >= 0.0f) {
-            freq_to_cent += this.cent_calibrated;
-        }
-        float[] fArr2 = this.analyzer.get_pitch_buf();
-        int i10 = this.analyzer.get_pitch_buf_pos();
-        int i11 = this.analyzer.get_pitch_buf_size();
-        int i12 = (freq_to_cent > 0.0f ? 1 : (freq_to_cent == 0.0f ? 0 : -1));
-        if (i12 >= 0 && this.auto_scroll && !this.bDragging) {
-            int i13 = this.bottom_cent;
-            if (freq_to_cent < i13 + 100) {
-                int i14 = this.velocity;
-                this.bottom_cent = i13 + i14;
-                this.velocity = i14 - this.velocity_diff;
-            } else if (freq_to_cent > (i13 + (this.view_height / this.y_per_cent)) - 100.0f) {
-                int i15 = this.velocity;
-                this.bottom_cent = i13 + i15;
-                this.velocity = i15 + this.velocity_diff;
-            } else {
-                this.velocity = 0;
-            }
-        }
-        this.paint.setColor(0xFFCCCCCC);
-        this.paint.setStrokeWidth(1.5f);
-        float f4 = x0;
-        lockCanvas.drawLine(f4, 0.0f, f4, this.view_height, this.paint);
-        if (this.display_bpm || this.display_metronome) {
-            drawBpmOverlay(lockCanvas);
-        }
-        this.paint.setTextSize(FONT_SIZE);
-        this.paint.setTextAlign(Paint.Align.RIGHT);
-        int i20 = (this.bottom_cent / 100) * 100;
-        int i21 = (int) (i20 + (this.view_height / this.y_per_cent) + 100.0f);
-        for (int i22 = i20; i22 < i21; i22 += 100) {
-            int i23 = this.octave_offset + (i22 / 1200);
-            int i24 = ((i22 / 100) + 12) % 12;
-            int i25 = ((i24 - this.scale_key) + 12) % 12;
-            float f12 = x0 - 1.0f;
-            boolean semitoneLine;
-            if (this.isChromatic) {
-                this.paint.setColor(this.colorChromatic[i24]);
-                this.paint.setStrokeWidth(1.5f);
-                semitoneLine = false;
-            } else if (i25 == 0) {
-                this.paint.setColor(this.color[0]);
-                this.paint.setStrokeWidth(zoom_x0);
-                f12 -= 4.0f;
-                semitoneLine = false;
-            } else if (i25 == 1 || (((this.isMajor && i25 == 3) || (!this.isMajor && i25 == 4)) || i25 == 6 || ((this.isMajor && i25 == 8) || ((!this.isMajor && i25 == 9) || ((this.isMajor && i25 == 10) || (!this.isMajor && i25 == 11)))))) {
-                this.paint.setColor(this.colorSemitone);
-                this.paint.setStrokeWidth(1.0f);
-                semitoneLine = true;
-            } else {
-                this.paint.setColor(this.color[i25]);
-                this.paint.setStrokeWidth(1.5f);
-                semitoneLine = false;
-            }
-            float f13 = this.view_height - ((i22 - this.bottom_cent) * this.y_per_cent);
-            if (semitoneLine && !this.indicate_semitone) {
-                // thin semitone gridline only
-            } else {
-                lockCanvas.drawLine(f12, f13, this.view_width, f13, this.paint);
-            }
-            // labels: natural rows always; black-key rows only when semitones are displayed
-            boolean blackKey = i24 == 1 || i24 == 3 || i24 == 6 || i24 == 8 || i24 == 10;
-            if (!blackKey || this.display_semitone) {
-                if (!this.traditional) {
-                    lockCanvas.drawText(note_str[i24] + getSemitoneString(i24) + i23, x0 - 4.0f, f13 + 4.0f, this.paint);
-                } else if (!"ファ".equals(note_str[i24])) {
-                    lockCanvas.drawText(note_str[i24] + getSemitoneString(i24) + i23, x0 - 4.0f, f13 + 4.0f, this.paint);
-                } else {
-                    lockCanvas.drawText(getSemitoneString(i24) + Integer.toString(i23), x0 - 4.0f, f13 + 4.0f, this.paint);
-                    this.paint.setTextAlign(Paint.Align.LEFT);
-                    lockCanvas.drawText("フ", 0.0f, f13 + 4.0f, this.paint);
-                    this.paint.setTextSize(11.2f);
-                    lockCanvas.drawText("ァ", 12.0f, f13 + 4.0f, this.paint);
-                    this.paint.setTextSize(FONT_SIZE);
-                    this.paint.setTextAlign(Paint.Align.RIGHT);
-                }
-            }
-        }
-        this.paint.setTextAlign(Paint.Align.LEFT);
-        this.paint.setColor(this.colorPitch);
-        this.paint.setStrokeWidth(1.0f);
-        int i30 = (int) ((this.view_width - x0) / this.zoom_x);
-        float f15 = -1.0f;
-        int i31 = 0;
-        for (int i32 = 0; i32 < i30; i32++) {
-            float f16 = x0 + (i32 * this.zoom_x);
-            float f17 = fArr2[(((i10 + i11) - i30) + i32) % i11];
-            if (f17 >= 0.0f) {
-                f17 += this.cent_calibrated;
-                float f18 = this.view_height - ((f17 - this.bottom_cent) * this.y_per_cent);
-                if (f15 < 0.0f || Math.abs(f17 - f15) > 400.0f) {
-                    float[] fArr4 = this.pts;
-                    fArr4[i31] = f16;
-                    fArr4[i31 + 1] = f18;
-                } else {
-                    float[] fArr5 = this.pts;
-                    fArr5[i31] = fArr5[i31 - 2];
-                    fArr5[i31 + 1] = fArr5[i31 - 1];
-                }
-                float[] fArr6 = this.pts;
-                fArr6[i31 + 2] = f16;
-                fArr6[i31 + 3] = f18;
-                i31 += 4;
-            }
-            f15 = f17;
-        }
-        if (i31 >= 4) {
-            lockCanvas.drawLines(this.pts, 0, i31, this.paint);
-        }
-        drawPitchName(lockCanvas, d2, freq_to_cent >= 0.0f, false);
     }
 
     private void drawBpmOverlay(Canvas lockCanvas) {
@@ -445,7 +284,7 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     }
 
     /** Big note name + tuner + Hz. */
-    private void drawPitchName(Canvas lockCanvas, double peakFreq, boolean pitchValid, boolean custom) {
+    private void drawPitchName(Canvas lockCanvas, double peakFreq, boolean pitchValid) {
         double[] dArr = this.peak_freq_buf;
         int i33 = this.peak_freq_buf_pos;
         int i34 = i33 + 1;
@@ -471,7 +310,7 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         double d6 = d4 / i35;
         float freq_to_cent2 = Analyzer.freq_to_cent(d6) + this.cent_calibrated;
 
-        if (custom && this.scaleConfig != null) {
+        if (this.scaleConfig != null) {
             int[] nearest = this.scaleConfig.nearestNote(freq_to_cent2);
             int noteIdx = nearest[0];
             int period = nearest[1];
@@ -491,33 +330,6 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
             if (this.display_tuner) {
                 drawTunerCustom(lockCanvas, freq_to_cent2, (float) dev);
             }
-        } else {
-            int i36 = ((int) (freq_to_cent2 + 0.5d)) + 50;
-            int i37 = (i36 / 1200) + this.octave_offset;
-            int i38 = (i36 % 1200) / 100;
-            float f19 = this.view_width / zoom_x0;
-            this.paint.setColor(0xFFFFFFFF);
-            this.paint.setTextSize(FONT_SIZE_PITCH);
-            this.paint.setTextAlign(Paint.Align.LEFT);
-            if (!this.traditional) {
-                lockCanvas.drawText(note_str[i38], f19 - 10.666667f, 42.0f, this.paint);
-            } else if (!"ファ".equals(note_str[i38])) {
-                lockCanvas.drawText(note_str[i38], f19 - 10.666667f, 42.0f, this.paint);
-            } else {
-                lockCanvas.drawText("フ", f19 - 6.4f, 42.0f, this.paint);
-                this.paint.setTextSize(22.4f);
-                lockCanvas.drawText("ァ", 9.6f + f19, 42.0f, this.paint);
-                this.paint.setTextSize(FONT_SIZE_PITCH);
-            }
-            if ("♯".equals(note_sharp[i38])) {
-                drawSharp(lockCanvas, f19 + 8.0f, 42.0f, FONT_SIZE_PITCH);
-            }
-            this.paint.setTextAlign(Paint.Align.LEFT);
-            this.paint.setTextSize(FONT_SIZE_PITCH);
-            lockCanvas.drawText(Integer.toString(i37), f19 + 25.6f, 42.0f, this.paint);
-            if (this.display_tuner) {
-                drawTunerStandard(lockCanvas, freq_to_cent2);
-            }
         }
         if (this.display_hz) {
             this.paint.setTextSize(FONT_SIZE_HZ);
@@ -525,56 +337,6 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
             this.paint.setTextAlign(Paint.Align.RIGHT);
             lockCanvas.drawText(String.format("%4.0fHz", Double.valueOf(d6)), (this.view_width * 4.0f) / 5.0f, 42.0f, this.paint);
             this.paint.setTextAlign(Paint.Align.LEFT);
-        }
-    }
-
-    private void drawTunerStandard(Canvas lockCanvas, float freq_to_cent2) {
-        int i39 = 0xFFCCCCCC;
-        this.paint.setColor(0xFFCCCCCC);
-        lockCanvas.drawPath(this.pathTuner, this.paint);
-        float f20 = freq_to_cent2 + TUNER_HALF_WINDOW_CENTS;
-        int i40 = ((int) (((freq_to_cent2 - TUNER_HALF_WINDOW_CENTS) + 10.0f) / 10.0f)) * 10;
-        while (true) {
-            float f21 = i40;
-            if (f21 >= f20) {
-                break;
-            }
-            float f22 = this.x_tuner + ((f21 - freq_to_cent2) * 1.75f);
-            if (i40 % 100 == 0) {
-                this.paint.setColor(i39);
-                int i41 = (i40 % 1200) / 100;
-                float f23 = this.y_tuner + FONT_SIZE_TUNER + 7.0f;
-                this.paint.setTextSize(FONT_SIZE_TUNER);
-                if (!this.traditional) {
-                    lockCanvas.drawText(note_str[i41], f22 - 4.6666665f, f23, this.paint);
-                } else {
-                    this.paint.setTextAlign(Paint.Align.RIGHT);
-                    if (!"ファ".equals(note_str[i41])) {
-                        lockCanvas.drawText(note_str[i41], 4.2000003f + f22, f23, this.paint);
-                    } else {
-                        lockCanvas.drawText("フ", f22 - 2.8f, f23, this.paint);
-                        this.paint.setTextSize(9.8f);
-                        lockCanvas.drawText("ァ", 4.2000003f + f22, f23, this.paint);
-                        this.paint.setTextSize(FONT_SIZE_TUNER);
-                    }
-                    this.paint.setTextAlign(Paint.Align.LEFT);
-                }
-                if ("♯".equals(note_sharp[i41])) {
-                    drawSharp(lockCanvas, 3.5f + f22, f23, FONT_SIZE_TUNER);
-                }
-                this.paint.setColor(0xFFCCCCCC);
-                this.paint.setStrokeWidth(zoom_x0);
-                lockCanvas.drawLine(f22, this.y_tuner + 1.0f, f22, this.y_tuner + 8.0f, this.paint);
-            } else if (i40 % 50 == 0) {
-                this.paint.setColor(0xFFCCCCCC);
-                this.paint.setStrokeWidth(1.5f);
-                lockCanvas.drawLine(f22, this.y_tuner + 1.0f, f22, this.y_tuner + 8.0f, this.paint);
-            } else {
-                this.paint.setColor(0xFF888888);
-                this.paint.setStrokeWidth(1.5f);
-                lockCanvas.drawLine(f22, this.y_tuner + 1.0f, f22, this.y_tuner + 5.0f, this.paint);
-            }
-            i40 += 10;
         }
     }
 
@@ -600,6 +362,8 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         double refAbs = (Analyzer.log2(cfg.refFreq) - Analyzer.log2_f_c1) * 1200.0;
         int centerP = (int) Math.round((freq_to_cent2 - refAbs) / cfg.equaveCents) + cfg.refRegister;
         int pSpan = (int) Math.ceil(halfWidth / cfg.equaveCents) + 1;
+        final int minorColor = minorTickColor(cfg.minColorValue());
+        final float tickTop = this.y_tuner + TICK_TOP;
 
         // long ticks exactly at the scale notes
         for (int p = centerP - pSpan; p <= centerP + pSpan; p++) {
@@ -607,10 +371,12 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
                 double rel = cfg.noteAbsCent(i, p) - freq_to_cent2;
                 if (rel >= -halfWidth && rel <= halfWidth) {
                     float fx = this.x_tuner + (float) (rel * 1.75);
-                    this.paint.setColor(0xFFCCCCCC);
-                    this.paint.setStrokeWidth(zoom_x0);
-                    lockCanvas.drawLine(fx, this.y_tuner + 1.0f, fx, this.y_tuner + 8.0f, this.paint);
-                    this.paint.setColor(0xFFFFFFFF);
+                    int tickColor = majorTickColor(cfg.colorValueFor(i));
+                    this.paint.setColor(tickColor);
+                    this.paint.setStrokeWidth(TICK_MAJOR_WIDTH);
+                    lockCanvas.drawLine(fx, tickTop, fx, tickTop + TICK_MAJOR_HEIGHT, this.paint);
+                    // the marking text of a major tick uses the tick's colour
+                    this.paint.setColor(tickColor);
                     this.paint.setTextSize(FONT_SIZE_TUNER);
                     lockCanvas.drawText(cfg.names[i] + Integer.toString(p), fx + 3.0f, this.y_tuner + FONT_SIZE_TUNER + 4.0f, this.paint);
                 }
@@ -631,9 +397,9 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
                     double rel = (start + (end - start) * k / 6.0) - freq_to_cent2;
                     if (rel >= -halfWidth && rel <= halfWidth) {
                         float fx = this.x_tuner + (float) (rel * 1.75);
-                        this.paint.setColor(0xFF888888);
-                        this.paint.setStrokeWidth(1.5f);
-                        lockCanvas.drawLine(fx, this.y_tuner + 1.0f, fx, this.y_tuner + 5.0f, this.paint);
+                        this.paint.setColor(minorColor);
+                        this.paint.setStrokeWidth(TICK_MINOR_WIDTH);
+                        lockCanvas.drawLine(fx, tickTop, fx, tickTop + TICK_MINOR_HEIGHT, this.paint);
                     }
                 }
             }
@@ -654,6 +420,37 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     private int customColor(int i) {
         ScaleConfig cfg = this.scaleConfig;
         return cfg != null ? cfg.colorFor(i) : 0xFF545454;
+    }
+
+    /** clamp(x) = min(max(x, 0), 255). */
+    private static int clamp(int v) {
+        return v < 0 ? 0 : (v > 255 ? 255 : v);
+    }
+
+    /** grayv(v) = RGB(v, v, v), with v clamped into 0..255. */
+    private static int grayv(int v) {
+        int c = clamp(v);
+        return 0xFF000000 | (c * 0x010101);
+    }
+
+    /**
+     * Major (scale-note) tick colour: grayv(clamp(round(r / 136 * 255))), where
+     * r is the note's configured value in the colour row — 136 becomes white,
+     * 84 becomes RGB(158,158,158), 42 becomes RGB(79,79,79). Without a colour
+     * row the defaults 136 (first note) and 84 (the rest) apply.
+     */
+    private static int majorTickColor(int r) {
+        return grayv(Math.round(r * 255.0f / 136.0f));
+    }
+
+    /**
+     * Minor (six-equal-division) tick colour, from the dimmest value in the
+     * config: grayv(round(clamp(round(rMin / 136 * 255)) / 2)) — 42 gives
+     * RGB(40,40,40), the 84 default gives RGB(79,79,79).
+     */
+    private static int minorTickColor(int rMin) {
+        int major = clamp(Math.round(rMin * 255.0f / 136.0f));
+        return grayv(Math.round(major / 2.0f));
     }
 
     /* ====================================================================
@@ -716,9 +513,10 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
                     continue;
                 }
                 float y = (float) (this.view_height - ((abs - this.bottom_cent) * this.y_per_cent));
-                boolean tonic = (i == 0);
                 this.paint.setColor(customColor(i));
-                this.paint.setStrokeWidth(tonic ? zoom_x0 : 1.5f);
+                // Per-note line thickness from the config's optional "…t" row;
+                // without that row the classic 8t (first note) / 6t defaults.
+                this.paint.setStrokeWidth(cfg.thicknessFor(i));
                 float lx = x0 - 1.0f;
                 lockCanvas.drawLine(lx, y, this.view_width, y, this.paint);
                 String label = cfg.names[i] + Integer.toString(p);
@@ -730,7 +528,7 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         // pitch history graph
         this.paint.setTextAlign(Paint.Align.LEFT);
         this.paint.setColor(this.colorPitch);
-        this.paint.setStrokeWidth(1.0f);
+        this.paint.setStrokeWidth(PITCH_LINE_WIDTH);
         int i30 = (int) ((this.view_width - x0) / this.zoom_x);
         float f15 = -1.0f;
         int i31 = 0;
@@ -755,21 +553,16 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         }
         if (i31 >= 4) {
             lockCanvas.drawLines(this.pts, 0, i31, this.paint);
+            // The dot marks the pitch being heard right now: it sits on the
+            // newest point of the curve, is as wide as three line thicknesses,
+            // and disappears while no pitch is detected.
+            if (pitchValid) {
+                this.paint.setColor(this.colorPitch);
+                this.paint.setStyle(Paint.Style.FILL);
+                lockCanvas.drawCircle(this.pts[i31 - 2], this.pts[i31 - 1], PITCH_DOT_RADIUS, this.paint);
+            }
         }
-        drawPitchName(lockCanvas, d2, pitchValid, true);
-    }
-
-    private void drawSharp(Canvas canvas, float f, float f2, float f3) {
-        float f4 = (0.2f * f3) + f;
-        float f5 = (0.38f * f3) + f;
-        float f6 = (0.05f * f3) + f;
-        float f7 = f + (0.53f * f3);
-        this.paint.setStrokeWidth(f3 * 0.075f);
-        canvas.drawLines(new float[]{f4, f2 - (0.1f * f3), f4, f2 - (0.85f * f3), f5, f2 - (0.15f * f3), f5, f2 - (0.9f * f3), f6, f2 - (0.3f * f3), f7, f2 - (0.4f * f3), f6, f2 - (0.6f * f3), f7, f2 - (0.7f * f3)}, this.paint);
-    }
-
-    private String getSemitoneString(int i) {
-        return this.display_semitone ? ("".equals(note_sharp[i]) ? " " : "#") : "";
+        drawPitchName(lockCanvas, d2, pitchValid);
     }
 
     public void hold() {
@@ -780,66 +573,40 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         timerStart();
     }
 
-    public void updateSettings(double d, float f, float f2, boolean z, boolean z2, int i, int i2, int i3,
-                               boolean z3, int i4, int i5, int i6, int i7, int[] iArr, int i8, int[] iArr2,
-                               boolean z4, boolean z5, int i9, boolean z6, int i10) {
-        this.analyzer.set_threshold(d);
-        setCurrentHorizontalZooming(f);
-        setCurrentVerticalZooming(f2);
-        this.indicate_semitone = z;
-        this.display_semitone = z2;
-        this.octave_offset = i;
-        this.cent_calibrated = ((float) ((Analyzer.log2(440.0d) - Analyzer.log2(i2)) * 12.0d * 100.0d)) + (i3 * 100);
-        this.auto_scroll = z3;
-        this.velocity_diff = i4;
-        this.display_hz = z4;
-        this.display_tuner = z5;
-        if (i9 >= 1 && i9 <= 5) {
-            this.peak_freq_buf = new double[i9];
+    /**
+     * Push the settings that the config-driven view actually uses. The old
+     * semitone/chromatic/scale-degree parameters are gone with the standard
+     * view; note names come from the config, and calibration/transpose stay
+     * fixed at A4 = 440 Hz and C (the caller passes them).
+     */
+    public void updateSettings(double threshold, float hZoom, float vZoom, int calibration, int transpose,
+                               boolean autoScroll, int scrollSpeed, int colorPitch, int colorTempo,
+                               int colorMetronome, boolean displayHz, boolean displayTuner, int smooth, int meter) {
+        this.analyzer.set_threshold(threshold);
+        setCurrentHorizontalZooming(hZoom);
+        setCurrentVerticalZooming(vZoom);
+        this.cent_calibrated = ((float) ((Analyzer.log2(440.0d) - Analyzer.log2(calibration)) * 12.0d * 100.0d)) + (transpose * 100);
+        this.auto_scroll = autoScroll;
+        this.velocity_diff = scrollSpeed;
+        this.display_hz = displayHz;
+        this.display_tuner = displayTuner;
+        if (smooth >= 1 && smooth <= 5) {
+            this.peak_freq_buf = new double[smooth];
             this.peak_freq_buf_pos = 0;
         }
-        this.traditional = z6;
-        if (this.scaleConfig == null) {
-            if (!z6) {
-                note_str = note_str_english;
-            } else {
-                String[] stringArray = getResources().getStringArray(R.array.note_name_traditional);
-                String str = stringArray[1];
-                String str2 = stringArray[3];
-                String str3 = stringArray[4];
-                String str4 = stringArray[5];
-                note_str = new String[]{stringArray[0], stringArray[0], str, str, stringArray[2], str2, str2, str3, str3, str4, str4, stringArray[6]};
-            }
-        }
-        if (!z6) {
-            this.paint.setTypeface(Typeface.MONOSPACE);
-        } else {
-            this.paint.setTypeface(Typeface.SANS_SERIF);
-        }
+        // Config names are always used, and they are drawn monospaced.
+        this.paint.setTypeface(Typeface.MONOSPACE);
         recomputeColumnX();
-        this.meter = i10;
-        this.colorPitch = i5;
-        this.colorTempo = i6;
-        this.colorMetronome = i7;
-        this.color = iArr;
-        this.colorSemitone = i8;
-        this.colorChromatic = iArr2;
-    }
-
-    public void updateScale(int i, boolean z) {
-        this.scale_key = i;
-        this.isMajor = z;
-        this.isChromatic = false;
+        this.meter = meter;
+        this.colorPitch = colorPitch;
+        this.colorTempo = colorTempo;
+        this.colorMetronome = colorMetronome;
     }
 
     public void updateBpm(boolean z, int i, boolean z2) {
         this.display_bpm = z;
         this.bpm = i;
         this.display_metronome = z2;
-    }
-
-    public void updateScaleChromatic() {
-        this.isChromatic = true;
     }
 
     public float getCurrentHorizontalZooming() {

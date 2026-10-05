@@ -14,6 +14,19 @@ import java.util.List;
  *   0\186ed6 7\186ed6 ...     ← nominal pitches; the LAST one is the equave
  *   甲 乙 丙 丁 戊 己 庚 辛 壬 癸  ← optional scale note names
  *   136 84 ... 84             ← optional per-note colors (0..255, R=G=B)
+ *   6t 8t 6t ... 6t           ← optional per-note line thickness
+ * </pre>
+ *
+ * The optional rows may appear as the last lines of the config in either
+ * order; a row is recognised by its content. The thickness row is the one
+ * whose tokens all end in "t": the stem before the "t" is a general
+ * Math.* expression (the same evaluator the pitch tokens use), and one unit
+ * of thickness is 1/4 of that value — so 8t = 2.0 units, 7t = 1.75,
+ * 6t = 1.5, 7.5t = 1.875, 13/2t = 1.625, 5*Math.LN2t ≈ 0.866. Pitch-only
+ * syntax ("\", "ed", the "c"/"me" suffixes, the "ie" prefix) is *not*
+ * accepted there: such a token is a parse error, exactly like a wrong token
+ * count. Without the row the classic defaults apply — 2.0 units (8t) for the
+ * first note and 1.5 units (6t) for every other note.
  * </pre>
  *
  * Every cents/ratio token is parsed with {@link #parseCentsOrRatio(String)},
@@ -49,6 +62,18 @@ public class ScaleConfig {
      * it wraps around from the start; null = no color line in the config.
      */
     public int[] colors = null;
+    /**
+     * Optional per-note line thickness in view units, one per scale note within
+     * one period (like {@link #colors}), written in the config as the "…t" row
+     * where one unit is 1/4 of the value before the "t" (8t = 2.0 units,
+     * 7t = 1.75, 6t = 1.5). A wrong token count is a parse error, not a wrap;
+     * null = no thickness row, which means the classic defaults.
+     */
+    public float[] thickness = null;
+    /** Classic thickness of the first note's line, i.e. "8t". */
+    public static final float DEFAULT_THICKNESS_FIRST = 2.0f;
+    /** Classic thickness of every other note's line, i.e. "6t". */
+    public static final float DEFAULT_THICKNESS_OTHER = 1.5f;
     /** Size of one period (equave) in cents. */
     public double equaveCents = 0.0;
     /** Parse error message, or null if parse succeeded. */
@@ -64,6 +89,118 @@ public class ScaleConfig {
             return colors[i % colors.length];
         }
         return i == 0 ? 0xFF888888 : 0xFF545454;
+    }
+
+    /**
+     * The configured grey value r (0..255) of note {@code i}: the colour row's
+     * value when present, otherwise the classic 136 (first note) / 84 (rest).
+     */
+    public int colorValueFor(int i) {
+        return colorFor(i) & 0xFF;
+    }
+
+    /**
+     * Dimmest value in the colour row, or 84 when the config has no row. Minor
+     * tuner ticks are drawn from it.
+     */
+    public int minColorValue() {
+        if (colors == null || colors.length == 0) {
+            return 84;
+        }
+        int min = 255;
+        for (int i = 0; i < colors.length; i++) {
+            int v = colors[i] & 0xFF;
+            if (v < min) {
+                min = v;
+            }
+        }
+        return min;
+    }
+
+    /**
+     * Line thickness used to draw note {@code i}: the config's own "…t" row
+     * when it has one, otherwise the classic defaults — 2.0 units (8t) for the
+     * first note and 1.5 units (6t) for every other note.
+     */
+    public float thicknessFor(int i) {
+        if (thickness != null && thickness.length > 0) {
+            return thickness[(i % thickness.length + thickness.length) % thickness.length];
+        }
+        return i == 0 ? DEFAULT_THICKNESS_FIRST : DEFAULT_THICKNESS_OTHER;
+    }
+
+    /**
+     * True when a trailing line is meant to be the thickness row: at least one
+     * token carries the "t" suffix. Such a line must then be valid in full —
+     * a half-written row like "5c 6t 6t" is a parse error instead of quietly
+     * becoming the note-name row. Colour rows contain digits only and names
+     * ending in "t" are not a thing in practice, so this marker is safe.
+     */
+    private static boolean looksLikeThicknessRow(String[] tokens) {
+        for (int i = 0; i < tokens.length; i++) {
+            String token = tokens[i];
+            if (token.length() >= 2 && token.charAt(token.length() - 1) == 't') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * One thickness token in view units: "8t" -> 2.0, "7t" -> 1.75, "6t" -> 1.5,
+     * "7.5t" -> 1.875, "13/2t" -> 1.625, "5*Math.LN2t" -> 0.866. The stem is a
+     * general Math.* expression evaluated by {@link MathEval}, and one unit is
+     * 1/4 of its value. Pitch-only syntax ("\", "ed", the "c"/"me" suffixes,
+     * the "ie" prefix) is not accepted: those tokens evaluate to NaN and are
+     * reported as errors. Negative values clamp to 0 (an invisible line).
+     * Returns null when the token is not a thickness.
+     */
+    public static Float thicknessUnit(String token) {
+        if (token == null || token.length() < 2) {
+            return null;
+        }
+        if (token.charAt(token.length() - 1) != 't') {
+            return null;
+        }
+        String stem = token.substring(0, token.length() - 1).trim();
+        if (stem.length() == 0 || stem.indexOf('\\') >= 0 || stem.contains("ed")) {
+            return null;
+        }
+        double value = MathEval.eval(stem) / 4.0;
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            return null;
+        }
+        return Float.valueOf((float) Math.max(0.0, value));
+    }
+
+    /**
+     * Colour values of a colour row (all tokens integers 0..255, at most one
+     * per note so a shorter row wraps), or null when the line is not one.
+     */
+    private static int[] parseColorRow(String[] tokens, int n) {
+        if (tokens.length < 1 || tokens.length > n) {
+            return null;
+        }
+        int[] vals = new int[tokens.length];
+        for (int t = 0; t < tokens.length; t++) {
+            String tok = tokens[t];
+            if (tok.length() == 0 || tok.length() > 3) {
+                return null;
+            }
+            int v = 0;
+            for (int d = 0; d < tok.length(); d++) {
+                char ch = tok.charAt(d);
+                if (ch < '0' || ch > '9') {
+                    return null;
+                }
+                v = v * 10 + (ch - '0');
+            }
+            if (v > 255) {
+                return null;
+            }
+            vals[t] = v;
+        }
+        return vals;
     }
 
     /**
@@ -225,42 +362,54 @@ public class ScaleConfig {
         }
         c.equaveCents = equave;
 
-        // ---- optional scale note names and per-note colors ----
-        // The color list, when present, is the last line of the config: every
-        // token is an integer 0..255 (equal R,G,B) and there are at most as
-        // many values as scale notes (a shorter list wraps around).
+        // ---- optional trailing rows: note names, colors, line thickness ----
+        // The colour row (integers 0..255, equal R,G,B, at most one per note,
+        // a shorter list wraps) and the thickness row (one "…t" value per
+        // note) may be given as the last lines in either order; a row is
+        // recognised by its content, and everything above them is names.
         int nameEnd = lines.size();
-        if (lines.size() > 2) {
-            String[] lastTokens = lines.get(lines.size() - 1).split("\\s+");
-            boolean colorLine = lastTokens.length >= 1 && lastTokens.length <= n;
-            if (colorLine) {
-                int[] vals = new int[lastTokens.length];
-                for (int t = 0; t < lastTokens.length && colorLine; t++) {
-                    String tok = lastTokens[t];
-                    boolean okTok = tok.length() > 0 && tok.length() <= 3;
-                    int v = 0;
-                    for (int d = 0; okTok && d < tok.length(); d++) {
-                        char ch = tok.charAt(d);
-                        if (ch < '0' || ch > '9') {
-                            okTok = false;
-                        } else {
-                            v = v * 10 + (ch - '0');
-                        }
-                    }
-                    if (okTok && v <= 255) {
-                        vals[t] = v;
-                    } else {
-                        colorLine = false;
-                    }
-                }
-                if (colorLine) {
-                    c.colors = new int[vals.length];
-                    for (int t = 0; t < vals.length; t++) {
-                        c.colors[t] = 0xFF000000 | (vals[t] * 0x010101);
-                    }
-                    nameEnd = lines.size() - 1;
-                }
+        for (int pass = 0; pass < 2 && nameEnd > 2; pass++) {
+            String[] tail = lines.get(nameEnd - 1).trim().split("\\s+");
+            if (tail.length == 1 && tail[0].length() == 0) {
+                nameEnd--;
+                continue;
             }
+            if (looksLikeThicknessRow(tail)) {
+                if (c.thickness != null) {
+                    c.error = "more than one thickness row";
+                    return c;
+                }
+                if (tail.length != n) {
+                    c.error = "thickness row needs " + n + " values, found " + tail.length;
+                    return c;
+                }
+                float[] values = new float[n];
+                for (int t = 0; t < n; t++) {
+                    Float unit = thicknessUnit(tail[t]);
+                    if (unit == null) {
+                        c.error = "invalid thickness token: " + tail[t];
+                        return c;
+                    }
+                    values[t] = unit.floatValue();
+                }
+                c.thickness = values;
+                nameEnd--;
+                continue;
+            }
+            int[] colorVals = parseColorRow(tail, n);
+            if (colorVals != null) {
+                if (c.colors != null) {
+                    c.error = "more than one color row";
+                    return c;
+                }
+                c.colors = new int[colorVals.length];
+                for (int t = 0; t < colorVals.length; t++) {
+                    c.colors[t] = 0xFF000000 | (colorVals[t] * 0x010101);
+                }
+                nameEnd--;
+                continue;
+            }
+            break;
         }
         StringBuilder namesBuf = new StringBuilder();
         for (int k = 2; k < nameEnd; k++) {
@@ -399,6 +548,16 @@ public class ScaleConfig {
                 sb.append((colors[i] >> 16) & 0xFF);
             }
         }
+        if (thickness != null && thickness.length > 0) {
+            sb.append("\nthickness ");
+            for (int i = 0; i < thickness.length; i++) {
+                if (i > 0) {
+                    sb.append(' ');
+                }
+                // View units, printed so the value survives the round trip.
+                sb.append(Float.toString(thickness[i]));
+            }
+        }
         return sb.toString();
     }
 
@@ -436,12 +595,20 @@ public class ScaleConfig {
             for (int i = 0; i < n; i++) {
                 c.names[i] = i < nTok.length && nTok[i].length() > 0 ? nTok[i] : String.valueOf(i + 1);
             }
-            if (lines.length >= 11 && lines[10].startsWith("colors")) {
-                String[] cTok2 = lines[10].substring(6).trim().split("\\s+");
-                c.colors = new int[cTok2.length];
-                for (int i = 0; i < cTok2.length; i++) {
-                    int v = Integer.parseInt(cTok2[i]);
-                    c.colors[i] = 0xFF000000 | (v * 0x010101);
+            for (int line = 10; line < lines.length; line++) {
+                if (lines[line].startsWith("colors")) {
+                    String[] cTok2 = lines[line].substring(6).trim().split("\\s+");
+                    c.colors = new int[cTok2.length];
+                    for (int i = 0; i < cTok2.length; i++) {
+                        int v = Integer.parseInt(cTok2[i]);
+                        c.colors[i] = 0xFF000000 | (v * 0x010101);
+                    }
+                } else if (lines[line].startsWith("thickness")) {
+                    String[] tTok = lines[line].substring(9).trim().split("\\s+");
+                    c.thickness = new float[tTok.length];
+                    for (int i = 0; i < tTok.length; i++) {
+                        c.thickness[i] = Float.parseFloat(tTok[i]);
+                    }
                 }
             }
             if (c.refIndex < 0 || c.refIndex >= n || c.refFreq <= 0.0 || c.equaveCents == 0.0) {

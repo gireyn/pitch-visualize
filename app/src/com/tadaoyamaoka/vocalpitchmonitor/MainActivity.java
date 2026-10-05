@@ -622,19 +622,13 @@ public class MainActivity extends Activity {
         double threshold = s.getThreshold();
         float horizontalZooming = s.getHorizontalZooming();
         float verticalZooming = s.getVerticalZooming();
-        // "Semitone" is not well defined for arbitrary tuning scales: the
-        // semitone settings were removed from the UI and are always off.
-        boolean indicateSemitone = false;
-        boolean displaySemitone = false;
-        int i2 = 1;                 // temperament settings removed: fixed A4 octave
-        int calibration = 440;      // calibration fixed at A4 = 440 Hz
-        int transpose = 0;          // transpose fixed at C
+        int calibration = 440;      // fixed at A4 = 440 Hz
+        int transpose = 0;          // fixed at C
         boolean autoScroll = s.getAutoScroll();
         int scrollSpeed = s.getScrollSpeed();
         boolean displayHz = s.getDisplayHz();
         boolean displayTuner = s.getDisplayTuner();
         int tunerSmooth = s.getTunerSmooth();
-        boolean equals = false;     // note-name mode removed (config names always used)
         boolean displayBpm = s.getDisplayBpm();
         boolean displayMetronome = s.getDisplayMetronome();
         int bpm = s.getBpm();
@@ -644,14 +638,9 @@ public class MainActivity extends Activity {
         } else {
             i = "3/4".equals(s.getMeter()) ? 3 : 0;
         }
-        int[] iArr = {s.getColor1(), 0, s.getColor2(), s.getColor3(), s.getColor3(), s.getColor4(), 0, s.getColor5(), s.getColor6(), s.getColor6(), s.getColor7(), s.getColor7()};
-        int[] iArr2 = new int[12];
-        for (int i3 = 0; i3 < 12; i3++) {
-            iArr2[i3] = s.getColorChromatic(i3);
-        }
-        mainSurfaceView.updateSettings(threshold, horizontalZooming, verticalZooming, indicateSemitone, displaySemitone,
-                i2, calibration, transpose, autoScroll, scrollSpeed, s.getColorPitch(), s.getColorTempo(),
-                s.getColorMetronome(), iArr, s.getColorSemitone(), iArr2, displayHz, displayTuner, tunerSmooth, equals, i);
+        mainSurfaceView.updateSettings(threshold, horizontalZooming, verticalZooming, calibration, transpose,
+                autoScroll, scrollSpeed, s.getColorPitch(), s.getColorTempo(), s.getColorMetronome(),
+                displayHz, displayTuner, tunerSmooth, i);
         findViewById(R.id.btnHold).setVisibility(s.getDisplayButtonHold() ? View.VISIBLE : View.GONE);
         findViewById(R.id.textViewCurrentScale).setVisibility(s.getDisplayButtonScale() ? View.VISIBLE : View.GONE);
         findViewById(R.id.textViewBpm).setVisibility(s.getDisplayButtonTempo() ? View.VISIBLE : View.GONE);
