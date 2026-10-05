@@ -434,22 +434,22 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     }
 
     /**
-     * Major (scale-note) tick colour: grayv(clamp(round(r / 136 * 255))), where
-     * r is the note's configured value in the colour row — 136 becomes white,
-     * 84 becomes RGB(158,158,158), 42 becomes RGB(79,79,79). Without a colour
+     * Major (scale-note) tick colour: grayv(clamp(round(r / 84 * 255))), where
+     * r is the note's configured value in the colour row — 42 becomes
+     * RGB(128,128,128), while 84 and above clamp to white. Without a colour
      * row the defaults 136 (first note) and 84 (the rest) apply.
      */
     private static int majorTickColor(int r) {
-        return grayv(Math.round(r * 255.0f / 136.0f));
+        return grayv(Math.round(r * 255.0f / 84.0f));
     }
 
     /**
      * Minor (six-equal-division) tick colour, from the dimmest value in the
-     * config: grayv(round(clamp(round(rMin / 136 * 255)) / 2)) — 42 gives
-     * RGB(40,40,40), the 84 default gives RGB(79,79,79).
+     * config: grayv(round(clamp(round(rMin / 84 * 255)) / 2)) — the 42 in
+     * 21ed2_scb.txt gives RGB(64,64,64), the 84 default gives white/2 = white.
      */
     private static int minorTickColor(int rMin) {
-        int major = clamp(Math.round(rMin * 255.0f / 136.0f));
+        int major = clamp(Math.round(rMin * 255.0f / 84.0f));
         return grayv(Math.round(major / 2.0f));
     }
 

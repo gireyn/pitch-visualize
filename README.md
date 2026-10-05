@@ -78,10 +78,10 @@ Build output: `VocalPitchMonitor-NoAds.apk` (signed, installable).
   the log-pitch interval into six equal parts. Tick height and thickness are
   fixed constants (major 7 × 2.0, minor 4 × 1.5 view units), while their
   **colours follow the config**: a major tick and its marking text use
-  `grayv(clamp(round(r / 136 * 255)))` with `r` the note's colour value
-  (136 → white, 84 → RGB(158,158,158), 42 → RGB(79,79,79)), and every minor
-  tick uses `grayv(round(clamp(round(rMin / 136 * 255)) / 2))` from the
-  dimmest value in the colour row (42 → RGB(40,40,40)), where
+  `grayv(clamp(round(r / 84 * 255)))` with `r` the note's colour value
+  (42 → RGB(128,128,128); 84 and above clamp to white), and every minor
+  tick uses `grayv(round(clamp(round(rMin / 84 * 255)) / 2))` from the
+  dimmest value in the colour row (42 → RGB(64,64,64)), where
   `clamp(x) = min(max(x, 0), 255)` and `grayv(v)` is RGB(v, v, v).
 - **"Hearing now" dot**: the pitch-history line ends in a filled dot whose
   radius is 1.5 view units — three line thicknesses across — in the same
