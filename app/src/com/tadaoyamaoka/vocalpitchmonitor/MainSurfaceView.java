@@ -81,6 +81,9 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     private float pre_y;
     /** Fractional drag accumulator so a 1:1 pan never stalls on rounding. */
     private float drag_cent;
+    /** How long a manual pan/pinch keeps auto ranging out of the way. */
+    private static final long MANUAL_GESTURE_HOLD_MS = 2000L;
+    private long manual_until_ms = 0L;
     private float[] pts;
     private float scale;
     private Timer timer;
@@ -577,7 +580,14 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
             f15 = f17;
         }
         if (i31 >= 4) {
+            // Round caps and joins: each segment gets a semicircle at both
+            // ends, so the melody reads as one fluent curve instead of a row
+            // of rectangles. Purely visual — the sampling is unchanged.
+            this.paint.setStrokeCap(Paint.Cap.ROUND);
+            this.paint.setStrokeJoin(Paint.Join.ROUND);
             lockCanvas.drawLines(this.pts, 0, i31, this.paint);
+            // the tick marks and grid rows keep their square ends
+            this.paint.setStrokeCap(Paint.Cap.BUTT);
             // The dot marks the pitch being heard right now: it sits on the
             // newest point of the curve, is as wide as three line thicknesses,
             // and disappears while no pitch is detected.
@@ -658,6 +668,33 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         this.bottom_cent = i;
     }
 
+    /** Clamp the horizontal zoom into the range Settings allows. */
+    private static float clampZoomX(float v) {
+        float min = Settings.HORIZONTAL_ZOOMING_MIN * zoom_x0;
+        float max = Settings.HORIZONTAL_ZOOMING_MAX * zoom_x0;
+        return v < min ? min : (v > max ? max : v);
+    }
+
+    /** Clamp the vertical (pitch) zoom into the range Settings allows. */
+    private static float clampYPerCent(float v) {
+        float min = Settings.VERTICAL_ZOOMING_MIN * y_per_cent0;
+        float max = Settings.VERTICAL_ZOOMING_MAX * y_per_cent0;
+        return v < min ? min : (v > max ? max : v);
+    }
+
+    /**
+     * A manual pan or pinch wins for a moment: auto ranging would otherwise
+     * pull the view straight back to the sung pitch, which reads as if the
+     * gesture had been ignored. It resumes a couple of seconds later.
+     */
+    private void markManualGesture() {
+        this.manual_until_ms = System.currentTimeMillis() + MANUAL_GESTURE_HOLD_MS;
+    }
+
+    private boolean manualGestureActive() {
+        return System.currentTimeMillis() < this.manual_until_ms;
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent motionEvent) {
         int action = motionEvent.getAction() & 255;
@@ -669,6 +706,7 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
             this.bZoomingX = false;
             this.bZoomingY = false;
             this.bDragging = false;
+            markManualGesture();
         } else if (action == MotionEvent.ACTION_MOVE) {
             if (motionEvent.getPointerCount() == 2) {
                 if (this.bZoomingX) {
@@ -680,11 +718,8 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
                     float f = this.pre_x > 1.0f && abs2 > 1.0f
                             ? this.zoom_x * (abs2 / this.pre_x)
                             : this.zoom_x;
-                    if (f < Settings.HORIZONTAL_ZOOMING_MIN * zoom_x0) {
-                        this.zoom_x = Settings.HORIZONTAL_ZOOMING_MIN * zoom_x0;
-                    } else if (this.zoom_x > Settings.HORIZONTAL_ZOOMING_MAX * zoom_x0) {
-                        this.zoom_x = Settings.HORIZONTAL_ZOOMING_MAX * zoom_x0;
-                    }
+                    this.zoom_x = clampZoomX(f);
+                    markManualGesture();
                     this.pre_x = abs2;
                 }
                 if (this.bZoomingY) {
@@ -693,11 +728,8 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
                     float f2 = this.pre_y > 1.0f && abs3 > 1.0f
                             ? this.y_per_cent * (abs3 / this.pre_y)
                             : this.y_per_cent;
-                    if (f2 < Settings.VERTICAL_ZOOMING_MIN * y_per_cent0) {
-                        this.y_per_cent = Settings.VERTICAL_ZOOMING_MIN * y_per_cent0;
-                    } else if (this.y_per_cent > Settings.VERTICAL_ZOOMING_MAX * y_per_cent0) {
-                        this.y_per_cent = Settings.VERTICAL_ZOOMING_MAX * y_per_cent0;
-                    }
+                    this.y_per_cent = clampYPerCent(f2);
+                    markManualGesture();
                     this.pre_y = abs3;
                 }
             } else if (this.bDragging) {
@@ -708,12 +740,13 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
                 // view several times further than the finger travelled).
                 this.drag_cent += (y - this.pre_y) / (this.y_per_cent * this.scale);
                 int i = (int) this.drag_cent;
-                this.bottom_cent = i;
                 if (i < 0) {
-                    this.bottom_cent = 0;
+                    i = 0;
                 } else if (i > Settings.BOTTOM_CENT_MAX) {
-                    this.bottom_cent = Settings.BOTTOM_CENT_MAX;
+                    i = Settings.BOTTOM_CENT_MAX;
                 }
+                this.bottom_cent = i;
+                markManualGesture();
                 this.pre_y = y;
             }
         } else if (action == MotionEvent.ACTION_POINTER_DOWN) {
