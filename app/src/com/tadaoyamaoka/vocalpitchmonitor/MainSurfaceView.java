@@ -95,6 +95,20 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     private float[] pts;
     private float scale;
     private Timer timer;
+    /**
+     * HOLD state, owned here and nowhere else. While it is true the whole
+     * picture is frozen: the canvas keeps being repainted (identical frames,
+     * so a surface the system re-creates can never go stale, and panning or
+     * pinching the held view still responds), while the history the graph is
+     * drawn from is clamped to the position it had when the button was
+     * pressed — see hold().
+     */
+    private boolean held;
+    /** Pitch-history position frozen at the moment HOLD was pressed. */
+    private int heldBufPos;
+    /** Peak frequency captured with it, so the readout freezes on the same frame. */
+    private double heldPeakFreq = -1.0d;
+    private ViewTreeObserver.OnGlobalLayoutListener layoutListener;
     private int velocity;
     private int velocity_diff;
     private float view_height;
@@ -159,12 +173,19 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
 
     @Override
     public void surfaceCreated(SurfaceHolder surfaceHolder) {
-        getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
-            @Override
-            public void onGlobalLayout() {
-                MainSurfaceView.this.changeScale();
-            }
-        });
+        // Added once and removed again on every surfaceDestroyed: this used to
+        // pile up a new layout listener on each re-creation, so every resume
+        // added another changeScale() to every layout pass.
+        if (this.layoutListener == null) {
+            ViewTreeObserver.OnGlobalLayoutListener listener = new ViewTreeObserver.OnGlobalLayoutListener() {
+                @Override
+                public void onGlobalLayout() {
+                    MainSurfaceView.this.changeScale();
+                }
+            };
+            this.layoutListener = listener;
+            getViewTreeObserver().addOnGlobalLayoutListener(listener);
+        }
         changeScale();
         timerStart();
     }
@@ -203,13 +224,26 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     @Override
     public void surfaceDestroyed(SurfaceHolder surfaceHolder) {
         timerStop();
+        ViewTreeObserver.OnGlobalLayoutListener listener = this.layoutListener;
+        if (listener != null) {
+            getViewTreeObserver().removeOnGlobalLayoutListener(listener);
+            this.layoutListener = null;
+        }
         try {
             Thread.sleep(100L);
         } catch (InterruptedException unused) {
         }
     }
 
+    /**
+     * The surface owns exactly one draw thread. Starting a second one is what
+     * made the button lie: it could not be stopped afterwards, so HOLD (and
+     * the colour of the button) stopped having any effect on the graph.
+     */
     private void timerStart() {
+        if (this.timer != null) {
+            return;
+        }
         Timer timer = new Timer(true);
         this.timer = timer;
         timer.schedule(new TimerTask() {
@@ -323,20 +357,24 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
 
     /** Big note name + tuner + Hz. */
     private void drawPitchName(Canvas lockCanvas, double peakFreq, boolean pitchValid) {
-        double[] dArr = this.peak_freq_buf;
-        int i33 = this.peak_freq_buf_pos;
-        int i34 = i33 + 1;
-        this.peak_freq_buf_pos = i34;
-        dArr[i33] = peakFreq;
-        if (i34 >= dArr.length) {
-            this.peak_freq_buf_pos = 0;
+        // The smoothing buffer is not fed while a hold is on: the readout has
+        // to stay exactly as it was, not converge on the frozen pitch.
+        if (!this.held) {
+            double[] dArr = this.peak_freq_buf;
+            int i33 = this.peak_freq_buf_pos;
+            int i34 = i33 + 1;
+            this.peak_freq_buf_pos = i34;
+            dArr[i33] = peakFreq;
+            if (i34 >= dArr.length) {
+                this.peak_freq_buf_pos = 0;
+            }
         }
         if (!pitchValid) {
             return;
         }
         double d4 = 0.0d;
         int i35 = 0;
-        for (double d5 : dArr) {
+        for (double d5 : this.peak_freq_buf) {
             if (d5 > 0.0d) {
                 d4 += d5;
                 i35++;
@@ -505,13 +543,17 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         lockCanvas.scale(this.scale, this.scale);
         lockCanvas.drawColor(0xFF000000);
         this.paint.setStrokeCap(Paint.Cap.BUTT);
-        double d2 = this.analyzer.get_peak_freq();
+        // Live pitch drives everything except the history — and while a hold
+        // is on, the values captured when the button was pressed drive it
+        // instead, so the frozen frame cannot drift (auto ranging, the tuner,
+        // the Hz readout and the "now" dot all stand still).
+        double d2 = this.held ? this.heldPeakFreq : this.analyzer.get_peak_freq();
         float freq_to_cent = Analyzer.freq_to_cent(d2);
         if (freq_to_cent >= 0.0f) {
             freq_to_cent += this.cent_calibrated;
         }
         float[] pitchBuf = this.analyzer.get_pitch_buf();
-        int bufPos = this.analyzer.get_pitch_buf_pos();
+        int bufPos = this.held ? this.heldBufPos : this.analyzer.get_pitch_buf_pos();
         int bufSize = this.analyzer.get_pitch_buf_size();
         boolean pitchValid = freq_to_cent >= 0.0f;
 
@@ -620,12 +662,57 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         drawPitchName(lockCanvas, d2, pitchValid);
     }
 
+    /**
+     * Freeze the whole picture on the frame that is on screen now.
+     *
+     * Idempotent, and it deliberately does not touch the draw timer: stopping
+     * the timer is what used to leave the button and the canvas out of step
+     * (a timer started behind hold()'s back could not be stopped again), and
+     * a canvas that is never repainted goes stale the moment the system
+     * re-creates the surface. The freeze is made instead of two pieces of
+     * state — the history position the graph is drawn from, and the pitch the
+     * readout shows — plus the analyzer's history gate, which is what keeps a
+     * held stretch from consuming any column.
+     */
     public void hold() {
-        timerStop();
+        if (this.held) {
+            return;
+        }
+        this.held = true;
+        if (this.analyzer != null) {
+            this.heldPeakFreq = this.analyzer.get_peak_freq();
+            this.heldBufPos = this.analyzer.get_pitch_buf_pos();
+            this.analyzer.setPitchHistoryPaused(true);
+        }
     }
 
+    /**
+     * Resume live drawing. The held stretch was never added to the history,
+     * so the next analysed sample lands directly after the last one from
+     * before the hold: the new line continues the old one with no gap, no
+     * splice, and — however long the hold lasted — the pre-hold line is still
+     * on screen exactly where it was left.
+     */
     public void unHold() {
-        timerStart();
+        if (!this.held) {
+            return;
+        }
+        this.held = false;
+        if (this.analyzer != null) {
+            this.analyzer.setPitchHistoryPaused(false);
+        }
+    }
+
+    public boolean isHeld() {
+        return this.held;
+    }
+
+    public void setHold(boolean z) {
+        if (z) {
+            hold();
+        } else {
+            unHold();
+        }
     }
 
     /**

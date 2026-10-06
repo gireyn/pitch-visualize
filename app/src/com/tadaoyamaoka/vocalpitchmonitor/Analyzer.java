@@ -30,6 +30,17 @@ public class Analyzer {
     double peak_freq = -1.0d;
     private float[] pitch_buf = new float[PITCH_BUF_SIZE];
     private int pitch_buf_pos = 0;
+    /**
+     * While true the pitch *history* stops accepting samples: this is how a
+     * HOLD freezes the graph. The graph is drawn from pitch_buf alone, so a
+     * held stretch of audio then consumes no column at all — when the hold
+     * ends, the next analysed sample is appended straight after the last
+     * pre-hold one and the line continues from where it stopped. Only the
+     * history is gated: peak_freq and total_analyze_cnt (and with it the
+     * BPM/metronome) keep running, and the .wav recording lives in Recorder
+     * and never goes through here.
+     */
+    private boolean pitch_history_paused = false;
 
     private double power(double d, double d2) {
         return (d * d) + (d2 * d2);
@@ -69,6 +80,15 @@ public class Analyzer {
 
     public int get_pitch_buf_pos() {
         return this.pitch_buf_pos;
+    }
+
+    /** Pause/resume accepting samples into the pitch history (a HOLD). */
+    public void setPitchHistoryPaused(boolean z) {
+        this.pitch_history_paused = z;
+    }
+
+    public boolean isPitchHistoryPaused() {
+        return this.pitch_history_paused;
     }
 
     public double get_peak_freq() {
@@ -145,12 +165,14 @@ public class Analyzer {
         } else {
             this.peak_freq = -1.0d;
         }
-        float[] fArr = this.pitch_buf;
-        int i6 = this.pitch_buf_pos;
-        this.pitch_buf_pos = i6 + 1;
-        fArr[i6] = freq_to_cent(this.peak_freq);
-        if (this.pitch_buf_pos == PITCH_BUF_SIZE) {
-            this.pitch_buf_pos = 0;
+        if (!this.pitch_history_paused) {
+            float[] fArr = this.pitch_buf;
+            int i6 = this.pitch_buf_pos;
+            this.pitch_buf_pos = i6 + 1;
+            fArr[i6] = freq_to_cent(this.peak_freq);
+            if (this.pitch_buf_pos == PITCH_BUF_SIZE) {
+                this.pitch_buf_pos = 0;
+            }
         }
         this.total_analyze_cnt++;
     }

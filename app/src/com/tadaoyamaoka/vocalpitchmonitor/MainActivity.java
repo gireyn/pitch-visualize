@@ -57,7 +57,14 @@ public class MainActivity extends Activity {
 
     private Recorder recorder;
     final Handler handler = new Handler();
-    private boolean bHold = false;
+    /**
+     * The two — and only two — colours the HOLD button has: waiting to be
+     * taken, and holding. There used to be a third, dark one for "not
+     * holding", which read as a disabled button even though the next press
+     * was meant to be accepted just like the first.
+     */
+    private static final int COLOR_HOLD_OFF = 0xFF888888;
+    private static final int COLOR_HOLD_ON = 0xFFFFFFFF;
     private Analyzer analyzer = new Analyzer();
     SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd-HHmmss");
     private int record_analyze_cnt = 0;
@@ -80,20 +87,16 @@ public class MainActivity extends Activity {
         loadSettings();
 
         Button button = (Button) findViewById(R.id.btnHold);
-        button.setTextColor(0xFF888888);
+        updateHoldButton();
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Button button2 = (Button) view;
-                if (!MainActivity.this.bHold) {
-                    button2.setTextColor(0xFFFFFFFF);
-                    mainSurfaceView.hold();
-                    MainActivity.this.bHold = true;
-                    return;
-                }
-                button2.setTextColor(0xFF444444);
-                mainSurfaceView.unHold();
-                MainActivity.this.bHold = false;
+                // The canvas owns the hold state; the button only reports it.
+                // A second copy here is what used to let the two disagree —
+                // after the surface had been re-created the button would take
+                // the un-hold branch for a hold that was no longer on.
+                MainActivity.this.mainSurfaceView.setHold(!MainActivity.this.mainSurfaceView.isHeld());
+                MainActivity.this.updateHoldButton();
             }
         });
 
@@ -342,6 +345,18 @@ public class MainActivity extends Activity {
         mainSurfaceView.setCurrentHorizontalZooming(settings.getHorizontalZooming());
         mainSurfaceView.setCurrentVerticalZooming(settings.getVerticalZooming());
         mainSurfaceView.setBottomCent(settings.getBottomCent());
+        // Re-assert the hold (leaving the app for Settings does not release
+        // it), so the button can never show a state the canvas is not in.
+        updateHoldButton();
+    }
+
+    /** Draw the view's hold state on the HOLD button. */
+    private void updateHoldButton() {
+        Button button = (Button) findViewById(R.id.btnHold);
+        if (button == null) {
+            return;
+        }
+        button.setTextColor(mainSurfaceView != null && mainSurfaceView.isHeld() ? COLOR_HOLD_ON : COLOR_HOLD_OFF);
     }
 
     @Override

@@ -108,6 +108,28 @@ Build output: `VocalPitchMonitor-NoAds.apk` (signed, installable).
   (12 units) short of the right edge** so the newest pitch is easy to spot;
   the line's left end stays at the origin and the scale-note grid rows still
   span the full width.
+- **HOLD (top-right button)** freezes the whole picture on the frame you tap:
+  the melody line, the note grid, the big note name, the tuner and the Hz
+  readout all stand still. Its **two — and only two — colours** say whether it
+  is waiting to be taken (`grayv(136)`, `0xFF888888`) or holding (`grayv(255)`,
+  `0xFFFFFFFF`); the old dark `grayv(68)` third state is gone, together with
+  the second `bHold` copy of the state in `MainActivity` that could disagree
+  with the canvas. A held stretch **consumes no display space**: the analyzer
+  is told to stop adding to the pitch history, so when HOLD is tapped again the
+  first sample analysed after the hold is appended straight after the last one
+  from before it — the new line continues the old one directly, with no splice
+  and no gap, and however long the hold lasted the pre-hold line is still on
+  screen exactly where it was left. Only the *history* is gated: the analysis
+  keeps running (so the BPM/metronome counter and the next note are current the
+  instant you release) and a **.wav being recorded keeps the held stretch**,
+  because `Recorder` writes its own buffer and never goes through the history.
+  The canvas keeps being repainted while held — identical frames, so a surface
+  the system re-creates can never go stale — which is also why panning and
+  pinching a frozen view still respond. Freezing is two pieces of state (the
+  history position to draw up to, and the pitch to show) plus that one gate;
+  it deliberately **never touches the draw timer**, which is what used to
+  leave the button and the canvas out of step. HOLD survives leaving the app
+  (menu → Settings, Home, screen off): it stays on until you tap it again.
 - **Every size in the drawing is written in t**, the same unit the configs'
   thickness rows use (1 view unit = 4t): `64t` of note text, `128t` of the big
   display, a `26t` dot, a `9t` line. One place — `T` in `MainSurfaceView` —
@@ -163,7 +185,9 @@ app/                          Android app source (Java + resources)
 tests/                        JVM unit tests for the parser + pitch detector
 build.sh                      builds the APK with aapt2/javac/d8/apksigner
 _keys/debug.keystore          the one stable signing key (android/android)
-_work/                        build toolchain + reference APK decompilation
+_work/                        Android SDK + build tools that build.sh uses
+                              (hundreds of MB, git-ignored: see .gitignore)
+.gitignore                    keeps _work/ and _build/ out of the repository
 VocalPitchMonitor-NoAds.apk   the built, signed APK
 ```
 
@@ -182,6 +206,16 @@ at the start of every build: a key regenerated per build would make each APK
 refuse to install over the previous one, because Android rejects an update
 signed with a different key. Keep this file to keep upgrades working.
 
+`_build/` is the build's scratch directory — it and `_work/` are both
+git-ignored, so neither compiled output nor the SDK ever enters the working
+tree. The only thing a rebuild changes is the signed `VocalPitchMonitor-NoAds.apk`
+itself (and its `.idsig`), because apksigner stamps a fresh signature on every
+run even when nothing else changed; the built APK is committed on purpose so
+the repository always carries the installable app. `_work/` holds the staged
+SDK (`_work/sdk/android-15` for `aapt2`/`d8`/`zipalign`/`apksigner`,
+`_work/sdk/android-35/android.jar`) that `build.sh` resolves relative to
+itself, so the repository folder can be moved without breaking the build.
+
 ## Testing
 
 ```bash
@@ -190,7 +224,7 @@ javac -d _build/test -encoding UTF-8 \
   tests/TestParser.java tests/TestPitch.java \
   app/src/com/tadaoyamaoka/vocalpitchmonitor/{MathEval,ScaleConfig,Analyzer,FFT4g,ViewScale}.java
 java -cp _build/test TestParser   # grammar/conversion checks + the scale rule
-java -cp _build/test TestPitch    # pitch detection on synthetic sines
+java -cp _build/test TestPitch    # pitch detection on synthetic sines + the HOLD gate
 ```
 
 ## Using a tuning config

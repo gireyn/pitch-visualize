@@ -1,0 +1,5 @@
+# Staged Android SDK + build tools for build.sh (hundreds of MB, machine-local)
+_work/
+
+# build.sh scratch: wiped at the start of every build and regenerated
+_build/
