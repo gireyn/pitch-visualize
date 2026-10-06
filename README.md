@@ -23,7 +23,16 @@ Build output: `VocalPitchMonitor-NoAds.apk` (signed, installable).
 - **Tuning-config only**: the app always runs on a tuning config. The bundled
   **"7ed2 on C"** scale is the default; import others via the scale button.
 - **Scale config importing** (`Scale` button → *Import tuning config…*):
-  pick any `.txt`/`.json` tuning config through the system file picker.
+  pick any `.txt`/`.json` tuning config through the system file picker. The
+  name shown in the top-left corner follows the **file name** on every load,
+  so renaming the config file renames it in the app.
+- **Menu (bottom-right button)**: *Import tuning config…*, **Save as .wav**,
+  **Import .wav**, *Settings*. "Save as .wav" opens the system save dialog
+  with the timestamp pre-filled and writes the current recording there
+  (44.1 kHz / 16-bit mono PCM WAV, no permission needed). "Import .wav" reads
+  a picked WAV into memory for analysis and playback — nothing is copied and
+  there is no hidden library any more (the old Save/Load pair that wrote to
+  the app's private folder is gone, and with it the Load screen).
 - **The app remembers the config file and always runs on it**:
   - the file URI and display name are persisted in app preferences;
   - a parsed cache of the scale is persisted as well;
@@ -43,15 +52,18 @@ Build output: `VocalPitchMonitor-NoAds.apk` (signed, installable).
   - `1000me`, `ie2` — xen-tuner decimal units
   - `Math.pow(3/2,3)`, `MATH.log(3)/Math.LN2`, `2**3`, `^`, `PI`, `E`, … —
     `Math.*`/`MATH.*` functions and constants (JS-`eval`-like semantics)
-  - reference note `甲4: 320` / `A4: 440` / `E4: 320` — scale names or
+  - reference note `甲4: 319` / `A4: 440` / `C4: 262` — scale names or
     standard letter notes; the reference anchors the first listed nominal
     (xen-tuner relative-nominal-0 semantics)
   - optional scale-name line: `甲 乙 丙 丁 戊 己 庚 辛 壬 癸`
   - optional per-note color line: `136 84 84 …` — one gray value per scale
     note inside a period (do not include the next-period note); each value
-    is R=G=B in 0..255 (136 → RGB(136,136,136)). A missing line falls back
-    to the same defaults (first note 136, the others 84); a shorter list
-    wraps around from the start.
+    is R=G=B in 0..255 (136 → RGB(136,136,136)). A shorter list wraps around
+    from the start; when there is no line at all, four default levels apply
+    (see below).
+  - `NN` as a note name means "this note has no name". The reference note
+    must have a real name, and a scale in which every note is `NN` is a parse
+    error, because the large display needs a name to show.
   - optional per-note **line-thickness** row: `6t 8t 6t …` — one value per
     scale note, again without the next-period note. The trailing `t` marks
     the row and is ignored by the arithmetic; one unit of thickness is 1/4
@@ -65,7 +77,14 @@ Build output: `VocalPitchMonitor-NoAds.apk` (signed, installable).
     2.0 units (8t) for the first note and 1.5 units (6t) for the others.
   - `//` comments and blank lines ignored, UTF-8 (BOM tolerated)
 - **Note colors come from the tuning config**: each scale note's grid row and
-  left-column label are drawn in its config color. The old "Scale" and
+  left-column label are drawn in its config color. Without a colour row there
+  are four default levels — the first note ("root") named → 136, the first
+  note unnamed and every other named note → 84, an unnamed non-root note → 42
+  — so an unnamed note reads dimmer than a named one.
+- **Unnamed notes**: an `NN` name is skipped when drawing labels (the grid row
+  and its tuner tick stay, in their dimmed colour), and the large text above
+  the tuner strip shows the nearest note that *does* have a name. The tuning
+  deviation marker still targets the true nearest note, named or not. The old "Scale" and
   "Chromatic" color groups were removed from Settings → Color (only Pitch,
   Beats and Metronome colors remain there).
 - Custom scales are rendered on their own grid (rows at the exact scale-note
@@ -83,9 +102,18 @@ Build output: `VocalPitchMonitor-NoAds.apk` (signed, installable).
   tick uses `grayv(round(clamp(round(rMin / 84 * 255)) / 2))` from the
   dimmest value in the colour row (42 → RGB(64,64,64)), where
   `clamp(x) = min(max(x, 0), 255)` and `grayv(v)` is RGB(v, v, v).
-- **"Hearing now" dot**: the pitch-history line ends in a filled dot whose
-  radius is 1.5 view units — three line thicknesses across — in the same
-  colour as the line; it is drawn only while a pitch is actually detected.
+- **"Hearing now" dot**: the pitch-history line is 9t (2.25 view units) wide
+  and ends in a filled dot of 20t across (a 2.5-unit radius) in the line's own
+  colour, drawn only while a pitch is actually detected. Both stop **48t
+  (12 units) short of the right edge** so the newest pitch is easy to spot;
+  the line's left end stays at the origin and the scale-note grid rows still
+  span the full width.
+- **Screen-independent gestures**: one finger drags the pitch view exactly
+  1:1 — the grid follows the finger, so the same movement feels the same on a
+  phone and on a tablet (the old code multiplied by the display scale, so a
+  large screen moved several times further than the finger). The two pinches
+  are multiplicative: spreading the fingers by a factor scales the time or
+  pitch axis by that factor.
 - "Semitone" is not meaningful for arbitrary tuning scales: the two semitone
   settings ("Indicate lines of a semitone", "Display semitones on the
   vertical axis") were removed from Settings and are always off. The
@@ -110,7 +138,6 @@ app/                          Android app source (Java + resources)
     Recorder.java             AudioRecord/AudioTrack capture & playback
     Settings.java             preferences (+ config URI/name/payload keys)
     SettingsActivity.java     settings UI (ported)
-    LoadActivity.java         recorded-wav loader (ported)
     ColorPopupWindow.java     color picker (ported)
     LongClickRepeatAdapter.java (ported)
     ScaleConfig.java          musescore-xen-tuner config parser (new)
@@ -147,7 +174,7 @@ Example (`天干音阶.txt` — already in this folder):
 
 ```
 // standard note
-甲4: 320
+甲4: 319
 
 // pitches of one period; the last one is the first note of the next period
 0\186ed6 7\186ed6 16\186ed6 23\186ed6 30\186ed6 35\186ed6 42\186ed6 49\186ed6 58\186ed6 65\186ed6 72\186ed6
@@ -155,7 +182,8 @@ Example (`天干音阶.txt` — already in this folder):
 ```
 
 1. Tap the scale name (top left, e.g. “C Major”).
-2. Choose **Import tuning config…** and pick `天干音阶.txt`.
+2. Choose **Import tuning config…** and pick `天干音阶.txt` (its reference
+   note is 甲4 = 319 Hz since the official change).
 3. The monitor now displays the 天干 scale: detected notes as 甲4/乙4/…,
    grid rows at the exact scale pitches, register repeating every ~1200.76c
    (72/186 of the 6:1 equave).

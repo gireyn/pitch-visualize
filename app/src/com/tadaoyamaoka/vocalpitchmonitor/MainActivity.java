@@ -26,8 +26,7 @@ import java.io.BufferedOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.text.SimpleDateFormat;
@@ -52,16 +51,14 @@ import java.util.List;
  */
 public class MainActivity extends Activity {
     private static final int REQ_SETTINGS = 0;
-    private static final int REQ_LOAD = 1;
+    private static final int REQ_SAVE_WAV = 1;
     private static final int REQ_IMPORT_WAV = 2;
     private static final int REQ_IMPORT_CONFIG = 3;
 
-    private static String record_analyze_cnt_file_name = "record_analyze_cnt";
     private Recorder recorder;
     final Handler handler = new Handler();
     private boolean bHold = false;
     private Analyzer analyzer = new Analyzer();
-    private String fileName = null;
     SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd-HHmmss");
     private int record_analyze_cnt = 0;
 
@@ -141,7 +138,6 @@ public class MainActivity extends Activity {
                 imageButton2.setSelected(true);
                 imageButton.setEnabled(true);
                 imageButton3.setEnabled(false);
-                MainActivity.this.fileName = null;
                 MainActivity.this.record_analyze_cnt = MainActivity.this.analyzer.get_total_analyze_cnt();
             }
         });
@@ -390,11 +386,8 @@ public class MainActivity extends Activity {
                 intent.setType("audio/*");
                 startActivityForResult(intent, REQ_IMPORT_WAV);
                 return true;
-            case R.id.action_load:
-                startActivityForResult(new Intent(this, LoadActivity.class), REQ_LOAD);
-                return true;
             case R.id.action_save:
-                save();
+                startSaveWav();
                 return true;
             case R.id.action_settings:
                 settings.setHorizontalZooming(mainSurfaceView.getCurrentHorizontalZooming());
@@ -435,39 +428,15 @@ public class MainActivity extends Activity {
             if (i2 == RESULT_OK && intent != null && intent.getData() != null) {
                 handleConfigImport(intent.getData());
             }
-        } else if (i == REQ_LOAD) {
-            if (i2 == RESULT_OK) {
-                final String stringExtra = intent.getStringExtra("FILE_NAME");
+        } else if (i == REQ_SAVE_WAV) {
+            if (i2 == RESULT_OK && intent != null && intent.getData() != null) {
+                final Uri target = intent.getData();
                 new Handler().post(new Runnable() {
                     @Override
                     public void run() {
-                        Toast toast;
-                        if (MainActivity.this.recorder == null) {
-                            MainActivity.this.recorder = new Recorder(MainActivity.this.analyzer);
-                        }
-                        boolean loadRecordData = MainActivity.this.loadRecordData(stringExtra);
-                        if (loadRecordData) {
-                            MainActivity.this.fileName = stringExtra;
-                        }
-                        if (loadRecordData) {
-                            try {
-                                ObjectInputStream objectInputStream = new ObjectInputStream(MainActivity.this.openFileInput(record_analyze_cnt_file_name));
-                                Integer num = (Integer) ((HashMap) objectInputStream.readObject()).get(stringExtra);
-                                objectInputStream.close();
-                                if (num != null) {
-                                    MainActivity.this.record_analyze_cnt = num.intValue();
-                                } else {
-                                    MainActivity.this.record_analyze_cnt = 0;
-                                }
-                            } catch (IOException | ClassNotFoundException unused) {
-                            }
-                        }
-                        if (loadRecordData) {
-                            toast = Toast.makeText(MainActivity.this, R.string.msg_loaded, Toast.LENGTH_SHORT);
-                            ((ImageButton) MainActivity.this.findViewById(R.id.btnPlay)).setEnabled(true);
-                        } else {
-                            toast = Toast.makeText(MainActivity.this, R.string.msg_loaded_fail, Toast.LENGTH_SHORT);
-                        }
+                        Toast toast = Toast.makeText(MainActivity.this,
+                                saveWavTo(target) ? R.string.msg_saved : R.string.msg_saved_fail,
+                                Toast.LENGTH_SHORT);
                         toast.setGravity(17, 0, 0);
                         toast.show();
                     }
@@ -482,25 +451,19 @@ public class MainActivity extends Activity {
                         if (MainActivity.this.recorder == null) {
                             MainActivity.this.recorder = new Recorder(MainActivity.this.analyzer);
                         }
+                        // The picked file is read into memory for analysis and
+                        // playback; nothing is copied anywhere and no private
+                        // library exists any more.
                         String fileName = MainActivity.this.getFileName(data);
                         if (fileName == null || !fileName.endsWith(".wav")) {
                             Toast makeText = Toast.makeText(MainActivity.this, R.string.msg_filename_error, Toast.LENGTH_LONG);
                             makeText.setGravity(17, 0, 0);
                             makeText.show();
-                        } else if (MainActivity.this.getFileStreamPath(fileName).exists()) {
-                            Toast makeText2 = Toast.makeText(MainActivity.this, R.string.msg_fileexists_error, Toast.LENGTH_LONG);
-                            makeText2.setGravity(17, 0, 0);
-                            makeText2.show();
                         } else if (!MainActivity.this.loadRecordData(data)) {
                             Toast makeText3 = Toast.makeText(MainActivity.this, R.string.msg_imported_fail, Toast.LENGTH_SHORT);
                             makeText3.setGravity(17, 0, 0);
                             makeText3.show();
-                        } else if (!MainActivity.this.saveRecordData(fileName)) {
-                            Toast makeText4 = Toast.makeText(MainActivity.this, R.string.msg_saved_fail, Toast.LENGTH_SHORT);
-                            makeText4.setGravity(17, 0, 0);
-                            makeText4.show();
                         } else {
-                            MainActivity.this.fileName = fileName;
                             Toast makeText5 = Toast.makeText(MainActivity.this, R.string.msg_imported, Toast.LENGTH_SHORT);
                             makeText5.setGravity(17, 0, 0);
                             makeText5.show();
@@ -565,6 +528,30 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * Keep the displayed scale name in step with the file it came from: the
+     * stored name is captured at import time, so a later rename (or a name the
+     * provider reports differently) would otherwise stay stale in the top-left
+     * label. The file name wins.
+     */
+    private void refreshConfigName(Uri uri) {
+        try {
+            String name = getFileName(uri);
+            if (name == null) {
+                return;
+            }
+            name = name.replaceAll("(?i)\\.(txt|json)$", "");
+            if (name.length() == 0 || name.equals(settings.getConfigName())) {
+                return;
+            }
+            settings.setConfigName(name);
+            settings.setScale(name);
+            settings.commit();
+        } catch (Exception ignored) {
+            // a provider that cannot answer keeps the remembered name
+        }
+    }
+
     private String readText(Uri uri) throws IOException {
         InputStream is = getContentResolver().openInputStream(uri);
         if (is == null) {
@@ -597,6 +584,7 @@ public class MainActivity extends Activity {
         if (uriStr != null) {
             try {
                 Uri uri = Uri.parse(uriStr);
+                refreshConfigName(uri);
                 String text = readText(uri);
                 cfg = ScaleConfig.parse(text, cfgName);
                 if (cfg.error == null) {
@@ -676,6 +664,11 @@ public class MainActivity extends Activity {
         if (cfg != null && cfg.error == null) {
             this.scaleConfig = cfg;
             mainSurfaceView.updateScaleConfig(cfg);
+            // refreshConfigName() may have just renamed the scale.
+            String current = settings.getScale();
+            if (current != null && current.length() > 0) {
+                scale = current;
+            }
             ((TextView) findViewById(R.id.textViewCurrentScale)).setText(scale);
             return;
         }
@@ -722,36 +715,55 @@ public class MainActivity extends Activity {
 
     /* ---------------- wav record data (unchanged from original) ---------------- */
 
-    private boolean save() {
-        boolean saveRecordData = saveRecordData(this.sdf.format(new Date()) + ".wav");
-        if (saveRecordData) {
-            HashMap hashMap = null;
-            try {
-                ObjectInputStream objectInputStream = new ObjectInputStream(openFileInput(record_analyze_cnt_file_name));
-                hashMap = (HashMap) objectInputStream.readObject();
-                objectInputStream.close();
-            } catch (Exception unused) {
+    /**
+     * "Save as .wav": the user picks the folder and (optionally) renames the
+     * file in the system dialog; the suggested name is the timestamp.
+     */
+    private void startSaveWav() {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(wavMimeType());
+        intent.putExtra(Intent.EXTRA_TITLE, this.sdf.format(new Date()) + ".wav");
+        startActivityForResult(intent, REQ_SAVE_WAV);
+    }
+
+    private static String wavMimeType() {
+        try {
+            String mime = android.webkit.MimeTypeMap.getSingleton()
+                    .getMimeTypeFromExtension("wav");
+            if (mime != null && mime.length() > 0) {
+                return mime;
             }
-            if (hashMap == null) {
-                hashMap = new HashMap();
+        } catch (Throwable ignored) {
+            // fall through to the conventional type
+        }
+        return "audio/x-wav";
+    }
+
+    /** Writes the current recording to the document the user picked. */
+    private boolean saveWavTo(Uri uri) {
+        if (this.recorder == null || !this.recorder.hasRecordData()) {
+            return false;
+        }
+        OutputStream out = null;
+        try {
+            out = getContentResolver().openOutputStream(uri);
+            if (out == null) {
+                return false;
             }
-            hashMap.put(this.fileName, Integer.valueOf(this.record_analyze_cnt));
-            try {
-                ObjectOutputStream objectOutputStream = new ObjectOutputStream(openFileOutput(record_analyze_cnt_file_name, 0));
-                objectOutputStream.writeObject(hashMap);
-                objectOutputStream.close();
-            } catch (IOException unused3) {
+            writeWav(out);
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        } finally {
+            if (out != null) {
+                try {
+                    out.close();
+                } catch (IOException ignored) {
+                }
             }
         }
-        Toast toast;
-        if (saveRecordData) {
-            toast = Toast.makeText(this, R.string.msg_saved, Toast.LENGTH_SHORT);
-        } else {
-            toast = Toast.makeText(this, R.string.msg_saved_fail, Toast.LENGTH_SHORT);
-        }
-        toast.setGravity(17, 0, 0);
-        toast.show();
-        return saveRecordData;
     }
 
     private String getFileName(Uri uri) {
@@ -776,16 +788,12 @@ public class MainActivity extends Activity {
         return lastIndexOf != -1 ? path.substring(lastIndexOf + 1) : path;
     }
 
-    private boolean saveRecordData(String str) {
-        BufferedOutputStream bufferedOutputStream = null;
-        try {
-            try {
-                bufferedOutputStream = new BufferedOutputStream(openFileOutput(str, 0));
-            } catch (IOException e) {
-                e.printStackTrace();
-                return false;
-            }
-            short[] sArr = this.recorder.get_record_data();
+    /** The recorder's samples as a 44.1 kHz / 16-bit / mono PCM WAV. */
+
+    /** The recorder's samples as a 44.1 kHz / 16-bit / mono PCM WAV. */
+    private void writeWav(OutputStream rawOut) throws IOException {
+        BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(rawOut);
+        short[] sArr = this.recorder.get_record_data();
             int i = this.recorder.get_record_data_size();
             bufferedOutputStream.write("RIFF".getBytes());
             int i2 = i * 2;
@@ -805,32 +813,7 @@ public class MainActivity extends Activity {
             for (int i3 = 0; i3 < i; i3++) {
                 bufferedOutputStream.write(order.putShort(0, sArr[i3]).array());
             }
-            try {
-                bufferedOutputStream.close();
-            } catch (IOException e5) {
-                e5.printStackTrace();
-            }
-            this.fileName = str;
-            return true;
-        } catch (IOException e8) {
-            e8.printStackTrace();
-            if (bufferedOutputStream != null) {
-                try {
-                    bufferedOutputStream.close();
-                } catch (IOException e7) {
-                    e7.printStackTrace();
-                }
-            }
-            return false;
-        }
-    }
-
-    private boolean loadRecordData(String str) {
-        try {
-            return loadRecordData(openFileInput(str));
-        } catch (FileNotFoundException unused) {
-            return false;
-        }
+        bufferedOutputStream.flush();
     }
 
     private boolean loadRecordData(Uri uri) {

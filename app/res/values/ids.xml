@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <item type="id" name="action_default" />
-    <item type="id" name="action_delete" />
     <item type="id" name="action_import" />
     <item type="id" name="action_import_config" />
-    <item type="id" name="action_load" />
     <item type="id" name="action_save" />
     <item type="id" name="action_settings" />
     <item type="id" name="btnHold" />

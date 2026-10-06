@@ -36,10 +36,10 @@ public class TestParser {
             check("天干 names count=10", cfg.names.length == 10);
             check("天干 refIndex=0 (甲)", cfg.refIndex == 0);
             checkNear("天干 equave", cfg.equaveCents, 1200.7567745285369, 1e-6);
-            checkNear("甲4 freq", cfg.noteFreq(0, 4), 320.0, 1e-9);
-            checkNear("甲5 freq", cfg.noteFreq(0, 5), 320.0 * Math.pow(2.0, cfg.equaveCents / 1200.0), 1e-6);
-            int[] nn = cfg.nearestNote((AnalyzerRef.log2(320.0) - AnalyzerRef.LOG2_FC1) * 1200.0);
-            check("nearest(320Hz) = 甲4", nn[0] == 0 && nn[1] == 4);
+            checkNear("甲4 freq (319 since the official change)", cfg.noteFreq(0, 4), 319.0, 1e-9);
+            checkNear("甲5 freq", cfg.noteFreq(0, 5), 319.0 * Math.pow(2.0, cfg.equaveCents / 1200.0), 1e-6);
+            int[] nn = cfg.nearestNote((AnalyzerRef.log2(319.0) - AnalyzerRef.LOG2_FC1) * 1200.0);
+            check("nearest(319Hz) = 甲4", nn[0] == 0 && nn[1] == 4);
         }
         // The musescore-xen-tuner tuning files only exist when that checkout is
         // a sibling of this project; skip those cases instead of aborting.
@@ -50,7 +50,11 @@ public class TestParser {
         String tg2 = new String(Files.readAllBytes(new File(tunerDir, "天干音阶.txt").toPath()), Charset.forName("UTF-8"));
         ScaleConfig cfg2 = ScaleConfig.parse(tg2, "天干音阶");
         if (cfg2.error != null) { System.out.println("FAIL tg2 parse: " + cfg2.error); fails++; }
-        else { check("tg2 E4 anchors first nominal", cfg2.refIndex == 0); checkNear("tg2 freq(0,4)=320", cfg2.noteFreq(0, 4), 320.0, 1e-9); }
+        else {
+            double tg2Ref = tg2.contains("甲4: 319") ? 319.0 : 320.0;
+            check("tg2 E4 anchors first nominal", cfg2.refIndex == 0);
+            checkNear("tg2 freq(0,4) follows its reference line", cfg2.noteFreq(0, 4), tg2Ref, 1e-9);
+        }
         String sx = new String(Files.readAllBytes(new File("/media/fsek294Gi/package/pitch-visualize/pitch-visualize/musescore-xen-tuner/tunings/散星音阶.txt").toPath()), Charset.forName("UTF-8"));
         ScaleConfig cfg3 = ScaleConfig.parse(sx, "散星音阶");
         if (cfg3.error != null) { System.out.println("FAIL 散星 parse: " + cfg3.error); fails++; }
@@ -178,6 +182,54 @@ public class TestParser {
             }
         } else {
             System.out.println("SKIP 21ed2_scb.txt (not present)");
+        }
+
+        // ---- "NN" means an unnamed note; four default colour levels ----
+        check("isNamed rejects NN", !ScaleConfig.isNamed("NN") && !ScaleConfig.isNamed(""));
+        check("isNamed accepts a real name", ScaleConfig.isNamed("z0_") && ScaleConfig.isNamed("C"));
+        String nnCfg = "C4: 261.6255653005986\n0\\12 1\\12 2\\12 12\\12\nNN C NN";
+        ScaleConfig cfgNn = ScaleConfig.parse(nnCfg, "nn-defaults");
+        if (cfgNn.error != null) { System.out.println("FAIL nn-defaults: " + cfgNn.error); fails++; }
+        else {
+            check("NN is not a name", !cfgNn.noteIsNamed(0) && cfgNn.noteIsNamed(1) && !cfgNn.noteIsNamed(2));
+            check("root without a name -> 84", cfgNn.colorFor(0) == 0xFF545454);
+            check("named non-root -> 84", cfgNn.colorFor(1) == 0xFF545454);
+            check("unnamed non-root -> 42", cfgNn.colorFor(2) == 0xFF2A2A2A);
+            check("r_min follows the filled-in values", cfgNn.minColorValue() == 42);
+            int[] namedNearest = cfgNn.nearestNamedNote(
+                    (AnalyzerRef.log2(261.6255653005986) - AnalyzerRef.LOG2_FC1) * 1200.0);
+            check("big display picks the named note", namedNearest != null && namedNearest[0] == 1);
+        }
+        // a config with only named notes keeps the classic 136 / 84 pair
+        check("named only: r_min = 84", cfg5.minColorValue() == 84);
+        check("named only: root = 136", cfg5.colorFor(0) == 0xFF888888);
+        check("named only: others = 84", cfg5.colorFor(1) == 0xFF545454);
+        // all-unnamed and unnamed-reference configs are rejected
+        ScaleConfig allNn = ScaleConfig.parse("C4: 261.6255653005986\n0\\12 1\\12 2\\12 12\\12\nNN NN NN", "all-nn");
+        check("reject a scale with no named note", allNn.error != null);
+        ScaleConfig nnRef = ScaleConfig.parse("NN4: 261.6255653005986\n0\\12 1\\12 2\\12 12\\12\nNN C D", "nn-ref");
+        check("reject an unnamed reference note", nnRef.error != null);
+
+        // the zigzag example: NN names, a colour row and a thickness row together
+        File zig = new File("/media/fsek294Gi/package/pitch-visualize/pitch-visualize/zigzag音阶_psu50.txt");
+        if (zig.isFile()) {
+            String zigText = new String(Files.readAllBytes(zig.toPath()), Charset.forName("UTF-8"));
+            ScaleConfig cfgZig = ScaleConfig.parse(zigText, "zigzag音阶_psu50");
+            if (cfgZig.error != null) { System.out.println("FAIL zigzag: " + cfgZig.error); fails++; }
+            else {
+                check("zigzag note count = names count", cfgZig.cents.length == cfgZig.names.length);
+                check("zigzag has NN notes", !cfgZig.noteIsNamed(1) && cfgZig.noteIsNamed(0));
+                check("zigzag colors one per note", cfgZig.colors != null && cfgZig.colors.length == cfgZig.cents.length);
+                check("zigzag thickness one per note", cfgZig.thickness != null && cfgZig.thickness.length == cfgZig.cents.length);
+                checkNear("zigzag thickness[0] = 7t = 1.75", cfgZig.thicknessFor(0), 1.75, 1e-6);
+                checkNear("zigzag thickness[1] = 5t = 1.25", cfgZig.thicknessFor(1), 1.25, 1e-6);
+                check("zigzag refIndex 0 (z0_)", cfgZig.refIndex == 0);
+                checkNear("zigzag reference 319 Hz", cfgZig.noteFreq(0, 4), 319.0, 1e-9);
+                int[] zNamed = cfgZig.nearestNamedNote(cfgZig.noteAbsCent(1, 4));
+                check("zigzag nearest named skips the NN note", zNamed != null && cfgZig.noteIsNamed(zNamed[0]));
+            }
+        } else {
+            System.out.println("SKIP zigzag音阶_psu50.txt (not present)");
         }
 
         System.out.println(fails == 0 ? "ALL TESTS PASSED" : fails + " TESTS FAILED");

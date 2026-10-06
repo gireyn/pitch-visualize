@@ -26,9 +26,5 @@
             android:name="com.tadaoyamaoka.vocalpitchmonitor.SettingsActivity"
             android:label="@string/settings_name"
             android:theme="@style/AppTheme.Settings" />
-        <activity
-            android:name="com.tadaoyamaoka.vocalpitchmonitor.LoadActivity"
-            android:label="@string/action_load"
-            android:theme="@style/AppTheme.Settings" />
     </application>
 </manifest>

@@ -2,20 +2,15 @@
 <resources>
     <string name="app_name">Pitch Visual</string>
     <string name="action_default">Default</string>
-    <string name="action_delete">Delete</string>
-    <string name="action_import">Import</string>
+    <string name="action_import">Import .wav</string>
     <string name="action_import_config">Import tuning config…</string>
-    <string name="action_load">Load</string>
-    <string name="action_save">Save</string>
+    <string name="action_save">Save as .wav</string>
     <string name="action_send">Send</string>
     <string name="action_settings">Settings</string>
     <string name="chooser_title">Send wav to..</string>
-    <string name="msg_fileexists_error">File already exists</string>
     <string name="msg_filename_error">The file extension must be .wav</string>
     <string name="msg_imported">Imported</string>
     <string name="msg_imported_fail">Failed to import</string>
-    <string name="msg_loaded">Loaded</string>
-    <string name="msg_loaded_fail">Failed to load</string>
     <string name="msg_saved">Saved</string>
     <string name="msg_saved_fail">Failed to save</string>
     <string name="settings_name">Settings</string>

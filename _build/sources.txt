@@ -8,6 +8,5 @@
 /media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/FFT4g.java
 /media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/ColorPopupWindow.java
 /media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/Settings.java
-/media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/LoadActivity.java
 /media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/MathEval.java
 /media/fsek294Gi/package/pitch-visualize/pitch-visualize/_build/gen/com/tadaoyamaoka/vocalpitchmonitor/R.java

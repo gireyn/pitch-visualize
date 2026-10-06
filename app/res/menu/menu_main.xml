@@ -11,11 +11,6 @@
         android:title="@string/action_save"
         android:showAsAction="never" />
     <item
-        android:id="@id/action_load"
-        android:orderInCategory="97"
-        android:title="@string/action_load"
-        android:showAsAction="never" />
-    <item
         android:id="@id/action_import"
         android:orderInCategory="99"
         android:title="@string/action_import"

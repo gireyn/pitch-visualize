@@ -41,9 +41,19 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     private static final float TICK_MAJOR_WIDTH = 2.0f;
     private static final float TICK_MINOR_HEIGHT = 4.0f;
     private static final float TICK_MINOR_WIDTH = 1.5f;
-    /** Pitch history line width; the "hearing now" dot is 3x as thick. */
-    private static final float PITCH_LINE_WIDTH = 1.0f;
-    private static final float PITCH_DOT_RADIUS = (PITCH_LINE_WIDTH * 3.0f) / 2.0f;
+    /** One t: 1/4 view unit, the unit the configs' "…t" thickness rows use. */
+    private static final float T = 0.25f;
+    /** Pitch history line width: 9t = 2.25 view units. */
+    private static final float PITCH_LINE_WIDTH = 9.0f * T;
+    /** "Hearing now" dot diameter: 20t = 5.0 units, i.e. a 2.5-unit radius. */
+    private static final float PITCH_DOT_RADIUS = 10.0f * T;
+    /**
+     * The history line's right end (and its dot) stop this far short of the
+     * right edge — 48t = 12 units — so the newest pitch is easy to see. The
+     * line's left end stays where it was, and the scale-note grid lines still
+     * span the full width.
+     */
+    private static final float PITCH_RIGHT_MARGIN = 48.0f * T;
     private static float x0 = 10 + 16.0f;
 
     private Analyzer analyzer;
@@ -69,6 +79,8 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
     private int peak_freq_buf_pos;
     private float pre_x;
     private float pre_y;
+    /** Fractional drag accumulator so a 1:1 pan never stalls on rounding. */
+    private float drag_cent;
     private float[] pts;
     private float scale;
     private Timer timer;
@@ -213,6 +225,9 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         }
         float maxName = 0.0f;
         for (int i = 0; i < cfg.names.length; i++) {
+            if (!ScaleConfig.isNamed(cfg.names[i])) {
+                continue;
+            }
             float w = this.paint.measureText(cfg.names[i]);
             if (w > maxName) {
                 maxName = w;
@@ -311,22 +326,26 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         float freq_to_cent2 = Analyzer.freq_to_cent(d6) + this.cent_calibrated;
 
         if (this.scaleConfig != null) {
+            // The big text shows the nearest note that actually has a name
+            // ("NN" means unnamed), so it never displays "NN" itself.
+            int[] named = this.scaleConfig.nearestNamedNote(freq_to_cent2);
+            if (named != null) {
+                String name = this.scaleConfig.names[named[0]];
+                String reg = Integer.toString(named[1]);
+                this.paint.setColor(0xFFFFFFFF);
+                this.paint.setTextSize(FONT_SIZE_PITCH);
+                this.paint.setTextAlign(Paint.Align.LEFT);
+                float cx = this.view_width / zoom_x0;
+                float nameW = this.paint.measureText(name);
+                float regW = this.paint.measureText(reg);
+                float total = nameW + 8.0f + regW;
+                lockCanvas.drawText(name, cx - (total / 2.0f), 42.0f, this.paint);
+                lockCanvas.drawText(reg, cx - (total / 2.0f) + nameW + 8.0f, 42.0f, this.paint);
+            }
+            // The deviation marker still targets the true nearest note,
+            // named or not: an unnamed note is a valid tuning target.
             int[] nearest = this.scaleConfig.nearestNote(freq_to_cent2);
-            int noteIdx = nearest[0];
-            int period = nearest[1];
-            String name = this.scaleConfig.names[noteIdx];
-            String reg = Integer.toString(period);
-            this.paint.setColor(0xFFFFFFFF);
-            this.paint.setTextSize(FONT_SIZE_PITCH);
-            this.paint.setTextAlign(Paint.Align.LEFT);
-            float cx = this.view_width / zoom_x0;
-            float nameW = this.paint.measureText(name);
-            float regW = this.paint.measureText(reg);
-            float total = nameW + 8.0f + regW;
-            lockCanvas.drawText(name, cx - (total / 2.0f), 42.0f, this.paint);
-            lockCanvas.drawText(reg, cx - (total / 2.0f) + nameW + 8.0f, 42.0f, this.paint);
-            // nearest note deviation marker on the tuner
-            double dev = freq_to_cent2 - this.scaleConfig.noteAbsCent(noteIdx, period);
+            double dev = freq_to_cent2 - this.scaleConfig.noteAbsCent(nearest[0], nearest[1]);
             if (this.display_tuner) {
                 drawTunerCustom(lockCanvas, freq_to_cent2, (float) dev);
             }
@@ -376,9 +395,11 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
                     this.paint.setStrokeWidth(TICK_MAJOR_WIDTH);
                     lockCanvas.drawLine(fx, tickTop, fx, tickTop + TICK_MAJOR_HEIGHT, this.paint);
                     // the marking text of a major tick uses the tick's colour
-                    this.paint.setColor(tickColor);
-                    this.paint.setTextSize(FONT_SIZE_TUNER);
-                    lockCanvas.drawText(cfg.names[i] + Integer.toString(p), fx + 3.0f, this.y_tuner + FONT_SIZE_TUNER + 4.0f, this.paint);
+                    if (ScaleConfig.isNamed(cfg.names[i])) {
+                        this.paint.setColor(tickColor);
+                        this.paint.setTextSize(FONT_SIZE_TUNER);
+                        lockCanvas.drawText(cfg.names[i] + Integer.toString(p), fx + 3.0f, this.y_tuner + FONT_SIZE_TUNER + 4.0f, this.paint);
+                    }
                 }
             }
         }
@@ -519,8 +540,10 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
                 this.paint.setStrokeWidth(cfg.thicknessFor(i));
                 float lx = x0 - 1.0f;
                 lockCanvas.drawLine(lx, y, this.view_width, y, this.paint);
-                String label = cfg.names[i] + Integer.toString(p);
-                lockCanvas.drawText(label, x0 - 4.0f, y + 4.0f, this.paint);
+                if (ScaleConfig.isNamed(cfg.names[i])) {
+                    String label = cfg.names[i] + Integer.toString(p);
+                    lockCanvas.drawText(label, x0 - 4.0f, y + 4.0f, this.paint);
+                }
                 rowsDrawn++;
             }
         }
@@ -529,7 +552,9 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         this.paint.setTextAlign(Paint.Align.LEFT);
         this.paint.setColor(this.colorPitch);
         this.paint.setStrokeWidth(PITCH_LINE_WIDTH);
-        int i30 = (int) ((this.view_width - x0) / this.zoom_x);
+        // Columns are laid out from x0 rightwards; the last one sits
+        // PITCH_RIGHT_MARGIN short of the edge, which is where the dot goes.
+        int i30 = (int) ((this.view_width - PITCH_RIGHT_MARGIN - x0) / this.zoom_x) + 1;
         float f15 = -1.0f;
         int i31 = 0;
         for (int i32 = 0; i32 < i30; i32++) {
@@ -638,6 +663,7 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
         int action = motionEvent.getAction() & 255;
         if (action == MotionEvent.ACTION_DOWN) {
             this.pre_y = motionEvent.getY(0);
+            this.drag_cent = this.bottom_cent;
             this.bDragging = true;
         } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) {
             this.bZoomingX = false;
@@ -647,8 +673,13 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
             if (motionEvent.getPointerCount() == 2) {
                 if (this.bZoomingX) {
                     float abs2 = Math.abs(motionEvent.getX(0) - motionEvent.getX(1));
-                    float f = this.zoom_x + ((abs2 - this.pre_x) * this.scale * 0.001f);
-                    this.zoom_x = f;
+                    // Multiplicative pinch: spreading the fingers by a factor
+                    // scales the time axis by that factor. A ratio is
+                    // independent of screen size and density, so the gesture
+                    // feels the same on a phone and on a tablet.
+                    float f = this.pre_x > 1.0f && abs2 > 1.0f
+                            ? this.zoom_x * (abs2 / this.pre_x)
+                            : this.zoom_x;
                     if (f < Settings.HORIZONTAL_ZOOMING_MIN * zoom_x0) {
                         this.zoom_x = Settings.HORIZONTAL_ZOOMING_MIN * zoom_x0;
                     } else if (this.zoom_x > Settings.HORIZONTAL_ZOOMING_MAX * zoom_x0) {
@@ -658,8 +689,10 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
                 }
                 if (this.bZoomingY) {
                     float abs3 = Math.abs(motionEvent.getY(0) - motionEvent.getY(1));
-                    float f2 = this.y_per_cent + ((abs3 - this.pre_y) * this.scale * 2.0E-4f);
-                    this.y_per_cent = f2;
+                    // Same ratio rule for the pitch axis.
+                    float f2 = this.pre_y > 1.0f && abs3 > 1.0f
+                            ? this.y_per_cent * (abs3 / this.pre_y)
+                            : this.y_per_cent;
                     if (f2 < Settings.VERTICAL_ZOOMING_MIN * y_per_cent0) {
                         this.y_per_cent = Settings.VERTICAL_ZOOMING_MIN * y_per_cent0;
                     } else if (this.y_per_cent > Settings.VERTICAL_ZOOMING_MAX * y_per_cent0) {
@@ -669,7 +702,12 @@ public class MainSurfaceView extends SurfaceView implements SurfaceHolder.Callba
                 }
             } else if (this.bDragging) {
                 float y = motionEvent.getY(0);
-                int i = (int) (this.bottom_cent + ((y - this.pre_y) * this.scale * 1.5d));
+                // 1:1 with the finger: the grid moves exactly as far as the
+                // finger does, whatever the screen size or density (the old
+                // code multiplied by the display scale, so a tablet moved the
+                // view several times further than the finger travelled).
+                this.drag_cent += (y - this.pre_y) / (this.y_per_cent * this.scale);
+                int i = (int) this.drag_cent;
                 this.bottom_cent = i;
                 if (i < 0) {
                     this.bottom_cent = 0;

@@ -10,7 +10,7 @@ import java.util.List;
  * Supported config layout (mirrors xen-tuner's parseTuningConfig):
  * <pre>
  *   // comment lines start with //
- *   甲4: 320                  ← reference note "name[register]: frequency"
+ *   甲4: 319                  ← reference note "name[register]: frequency"
  *   0\186ed6 7\186ed6 ...     ← nominal pitches; the LAST one is the equave
  *   甲 乙 丙 丁 戊 己 庚 辛 壬 癸  ← optional scale note names
  *   136 84 ... 84             ← optional per-note colors (0..255, R=G=B)
@@ -74,21 +74,48 @@ public class ScaleConfig {
     public static final float DEFAULT_THICKNESS_FIRST = 2.0f;
     /** Classic thickness of every other note's line, i.e. "6t". */
     public static final float DEFAULT_THICKNESS_OTHER = 1.5f;
+    /**
+     * A note name written as "NN" means "this note has no name". The reference
+     * note must have a real name, and a scale with no named note at all is
+     * rejected: the large display shows the nearest named note.
+     */
+    public static final String NO_NAME = "NN";
+
+    /** True when a name token is a real name ("NN" and blanks are not). */
+    public static boolean isNamed(String name) {
+        return name != null && name.length() > 0 && !NO_NAME.equals(name);
+    }
+
+    /** True when note {@code i} of this config carries a real name. */
+    public boolean noteIsNamed(int i) {
+        return names != null && i >= 0 && i < names.length && isNamed(names[i]);
+    }
     /** Size of one period (equave) in cents. */
     public double equaveCents = 0.0;
     /** Parse error message, or null if parse succeeded. */
     public String error = null;
 
     /**
-     * Color used to draw note {@code i} (rows, labels): the config's own
-     * color list when present (wrapped), otherwise the default look —
-     * RGB(136,136,136) for the first note and RGB(84,84,84) for the rest.
+     * Color used to draw note {@code i} (rows, labels): the config's own color
+     * list when present (wrapped), otherwise four default levels —
+     * <pre>
+     *   first note, named ("root")      RGB(136,136,136)
+     *   first note without a name       RGB(84,84,84)
+     *   other notes with a name         RGB(84,84,84)
+     *   other notes without a name      RGB(42,42,42)
+     * </pre>
+     * so an unnamed note is dimmer than a named one, and the root stays the
+     * brightest when it has a name.
      */
     public int colorFor(int i) {
         if (colors != null && colors.length > 0) {
             return colors[i % colors.length];
         }
-        return i == 0 ? 0xFF888888 : 0xFF545454;
+        boolean named = noteIsNamed(i);
+        if (i == 0) {
+            return named ? 0xFF888888 : 0xFF545454;
+        }
+        return named ? 0xFF545454 : 0xFF2A2A2A;
     }
 
     /**
@@ -100,16 +127,19 @@ public class ScaleConfig {
     }
 
     /**
-     * Dimmest value in the colour row, or 84 when the config has no row. Minor
-     * tuner ticks are drawn from it.
+     * Dimmest of each note's <em>effective</em> colour value: the colour row
+     * where it exists, and the four default levels where it does not (so a
+     * config with no colour row and only named notes gives 84, while one with
+     * unnamed notes gives 42). Minor tuner ticks are drawn from it.
      */
     public int minColorValue() {
-        if (colors == null || colors.length == 0) {
+        int count = cents != null ? cents.length : 0;
+        if (count <= 0) {
             return 84;
         }
         int min = 255;
-        for (int i = 0; i < colors.length; i++) {
-            int v = colors[i] & 0xFF;
+        for (int i = 0; i < count; i++) {
+            int v = colorFor(i) & 0xFF;
             if (v < min) {
                 min = v;
             }
@@ -306,7 +336,7 @@ public class ScaleConfig {
         String refLine = lines.get(0);
         int colon = refLine.indexOf(':');
         if (colon < 0) {
-            c.error = "reference note line must look like \"甲4: 320\"";
+            c.error = "reference note line must look like \"甲4: 319\"";
             return c;
         }
         String refSpec = refLine.substring(0, colon).trim();
@@ -430,6 +460,22 @@ public class ScaleConfig {
             }
         }
 
+        // ---- names must leave something to show ----
+        int namedNotes = 0;
+        for (i = 0; i < n; i++) {
+            if (isNamed(c.names[i])) {
+                namedNotes++;
+            }
+        }
+        if (namedNotes == 0) {
+            c.error = "a scale needs at least one named note (\"NN\" means no name)";
+            return c;
+        }
+        if (!isNamed(namePart)) {
+            c.error = "the reference note needs a name; \"" + namePart + "\" is not one";
+            return c;
+        }
+
         // ---- locate the reference note ----
         c.refIndex = -1;
         for (i = 0; i < n; i++) {
@@ -491,6 +537,32 @@ public class ScaleConfig {
      * Find the nearest scale note (index, period) to an absolute-cent value.
      * Returns {index, period}; deviation in cents is the second element.
      */
+    /**
+     * Like {@link #nearestNote(double)} but skipping notes without a name, so
+     * the large display above the tuner never shows "NN". Returns null when no
+     * note is named (parsing rejects such a config).
+     */
+    public int[] nearestNamedNote(double absCent) {
+        int bestI = -1;
+        int bestP = refRegister;
+        double bestDev = Double.MAX_VALUE;
+        double refAbs = (Analyzer.log2(refFreq) - Analyzer.log2_f_c1) * 1200.0;
+        for (int i = 0; i < cents.length; i++) {
+            if (!noteIsNamed(i)) {
+                continue;
+            }
+            double rel = absCent - refAbs - (cents[i] - cents[refIndex]);
+            int p = (int) Math.round(rel / equaveCents) + refRegister;
+            double dev = Math.abs(absCent - noteAbsCent(i, p));
+            if (dev < bestDev) {
+                bestDev = dev;
+                bestI = i;
+                bestP = p;
+            }
+        }
+        return bestI < 0 ? null : new int[]{bestI, bestP};
+    }
+
     public int[] nearestNote(double absCent) {
         int bestI = 0;
         int bestP = refRegister;
