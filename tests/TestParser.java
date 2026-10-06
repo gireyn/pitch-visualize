@@ -1,5 +1,6 @@
 import com.tadaoyamaoka.vocalpitchmonitor.ScaleConfig;
 import com.tadaoyamaoka.vocalpitchmonitor.MathEval;
+import com.tadaoyamaoka.vocalpitchmonitor.ViewScale;
 import java.io.File;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
@@ -231,6 +232,39 @@ public class TestParser {
         } else {
             System.out.println("SKIP zigzag音阶_psu50.txt (not present)");
         }
+
+        // ---- canvas size rule (sublinear: fourth root of the area ratio) ----
+        // The 720x1600 phone is the anchor, so it must keep exactly the scale
+        // it always had — 1.5 px per view unit, i.e. a 480-unit-wide logical
+        // view — pixel for pixel. Bigger screens grow, but far slower.
+        check("scale(720x1600) is exactly the old reference 1.5",
+                ViewScale.of(720, 1600) == ViewScale.REFERENCE_SCALE);
+        check("scale(720x1600) is 1.5f bit for bit",
+                Float.floatToIntBits(ViewScale.of(720, 1600)) == Float.floatToIntBits(1.5f));
+        check("phone logical view stays 480 units wide", 720 / ViewScale.of(720, 1600) == 480.0f);
+        checkNear("phone logical view tall side unchanged", 1600 / ViewScale.of(720, 1600), 1066.6667, 1e-3);
+        check("rotation changes no size", ViewScale.of(1600, 720) == ViewScale.of(720, 1600));
+        // area ratio 4 -> fourth root 2 -> 1.5*sqrt(2)
+        checkNear("scale(1440x3200) = 1.5*sqrt(2)", ViewScale.of(1440, 3200), 1.5 * Math.sqrt(2.0), 1e-6);
+        checkNear("pad 1840x2800 gets ~2.18, not the old 3.83", ViewScale.of(1840, 2800), 2.1818, 5e-3);
+        checkNear("phone-plus 1080x2400 gets ~1.84", ViewScale.of(1080, 2400), 1.8371, 5e-3);
+        checkNear("unmeasured surface falls back to the reference", ViewScale.of(0, 0), 1.5, 1e-9);
+        // On the pad everything is bigger than on the phone, but the screen
+        // grows faster than the sizes do, so there is room for more music:
+        // the logical view (what fits on screen) grows more than one unit.
+        float padScale = ViewScale.of(1840, 2800);
+        float padViewW = 1840 / padScale;
+        float padViewH = 2800 / padScale;
+        checkNear("pad unit is 1.4542x the phone's", padScale / 1.5f, 1.4542, 5e-3);
+        checkNear("pad shows 1.7573x more time on screen", padViewW / 480.0f, 1.7573, 5e-3);
+        checkNear("pad shows 1.2034x more pitch range",
+                padViewH / (1600 / 1.5f), 1.2034, 5e-3);
+        check("pad shows more music than the sizes grew",
+                padViewW / 480.0f > padScale / 1.5f);
+        check("pad text 34.9 px (was 61 px with the old rule)", Math.abs((16.0f * padScale) - 34.9f) < 0.1f);
+        // The old proportional rule (width / 480) would have given 3.83 there.
+        checkNear("new pad scale is 0.569 of the old proportional one",
+                padScale / (1840.0f / 480.0f), 0.569, 5e-3);
 
         System.out.println(fails == 0 ? "ALL TESTS PASSED" : fails + " TESTS FAILED");
         System.exit(fails == 0 ? 0 : 1);

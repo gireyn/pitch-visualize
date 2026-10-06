@@ -95,7 +95,7 @@ Build output: `VocalPitchMonitor-NoAds.apk` (signed, installable).
   detected pitch: long ticks sit exactly on the scale notes (name + register
   below) and five short ticks between every adjacent pair of notes divide
   the log-pitch interval into six equal parts. Tick height and thickness are
-  fixed constants (major 7 × 2.0, minor 4 × 1.5 view units), while their
+  fixed constants (major 28t × 8t, minor 16t × 6t), while their
   **colours follow the config**: a major tick and its marking text use
   `grayv(clamp(round(r / 84 * 255)))` with `r` the note's colour value
   (42 → RGB(128,128,128); 84 and above clamp to white), and every minor
@@ -103,17 +103,34 @@ Build output: `VocalPitchMonitor-NoAds.apk` (signed, installable).
   dimmest value in the colour row (42 → RGB(64,64,64)), where
   `clamp(x) = min(max(x, 0), 255)` and `grayv(v)` is RGB(v, v, v).
 - **"Hearing now" dot**: the pitch-history line is 9t (2.25 view units) wide
-  and ends in a filled dot of 20t across (a 2.5-unit radius) in the line's own
+  and ends in a filled dot of 26t across (a 3.25-unit radius) in the line's own
   colour, drawn only while a pitch is actually detected. Both stop **48t
   (12 units) short of the right edge** so the newest pitch is easy to spot;
   the line's left end stays at the origin and the scale-note grid rows still
   span the full width.
+- **Every size in the drawing is written in t**, the same unit the configs'
+  thickness rows use (1 view unit = 4t): `64t` of note text, `128t` of the big
+  display, a `26t` dot, a `9t` line. One place — `T` in `MainSurfaceView` —
+  sets the ruler for the whole canvas.
+- **Sizes grow with the screen, but far more slowly than the screen.** One
+  view unit is worth `1.5 × sqrt(sqrt(w·h / (720·1600)))` pixels — the fourth
+  root of the area ratio — so the **720×1600 phone this drawing was tuned on
+  keeps exactly the 1.5 px per unit it always had, pixel for pixel**, while a
+  1840×2800 pad gets 2.18 instead of the old 3.83 (the old rule was simply
+  `width / 480`). On that pad the note text is 34.9 px instead of 61 px, 1.76×
+  as much time is on screen, and the visible pitch range is 1.20× the phone's
+  instead of 0.69×: more music *and* bigger music, where the old rule gave the
+  same music magnified. Only the screen's area matters, so rotating a device
+  changes no size at all. The window around the canvas — config name, buttons,
+  BPM box — is ordinary dip layout and is deliberately left alone. The rule
+  lives in `ViewScale.java` and its numbers are asserted in `tests/`.
 - **Screen-independent gestures**: one finger drags the pitch view exactly
   1:1 — the grid follows the finger, so the same movement feels the same on a
   phone and on a tablet (the old code multiplied by the display scale, so a
   large screen moved several times further than the finger). The two pinches
   are multiplicative: spreading the fingers by a factor scales the time or
-  pitch axis by that factor.
+  pitch axis by that factor. The pitch-axis pinch zooms **about the midpoint
+  of the two fingers**, so the note between them stays where it is.
 - "Semitone" is not meaningful for arbitrary tuning scales: the two semitone
   settings ("Indicate lines of a semitone", "Display semitones on the
   vertical axis") were removed from Settings and are always off. The
@@ -142,8 +159,10 @@ app/                          Android app source (Java + resources)
     LongClickRepeatAdapter.java (ported)
     ScaleConfig.java          musescore-xen-tuner config parser (new)
     MathEval.java             JS-eval-like expression evaluator (new)
+    ViewScale.java            screen size -> pixels per view unit (new)
 tests/                        JVM unit tests for the parser + pitch detector
 build.sh                      builds the APK with aapt2/javac/d8/apksigner
+_keys/debug.keystore          the one stable signing key (android/android)
 _work/                        build toolchain + reference APK decompilation
 VocalPitchMonitor-NoAds.apk   the built, signed APK
 ```
@@ -157,14 +176,20 @@ Requires only a JDK (17) and the Android SDK build-tools + platform jars
 ./build.sh          # -> VocalPitchMonitor-NoAds.apk
 ```
 
+The APK is signed with the committed key `_keys/debug.keystore`
+(`android`/`android`). It deliberately lives outside `_build/`, which is wiped
+at the start of every build: a key regenerated per build would make each APK
+refuse to install over the previous one, because Android rejects an update
+signed with a different key. Keep this file to keep upgrades working.
+
 ## Testing
 
 ```bash
-# parser grammar + tuning-config tests (uses the real 天干音阶.txt etc.)
+# parser grammar + canvas size rule + tuning-config tests (uses the real 天干音阶.txt etc.)
 javac -d _build/test -encoding UTF-8 \
   tests/TestParser.java tests/TestPitch.java \
-  app/src/com/tadaoyamaoka/vocalpitchmonitor/{MathEval,ScaleConfig,Analyzer,FFT4g}.java
-java -cp _build/test TestParser   # grammar/conversion checks
+  app/src/com/tadaoyamaoka/vocalpitchmonitor/{MathEval,ScaleConfig,Analyzer,FFT4g,ViewScale}.java
+java -cp _build/test TestParser   # grammar/conversion checks + the scale rule
 java -cp _build/test TestPitch    # pitch detection on synthetic sines
 ```
 

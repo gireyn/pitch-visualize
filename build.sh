@@ -13,7 +13,7 @@ ANDROID_JAR="$SDK/android-35/android.jar"
 D8="$SDK/android-15/d8"
 ZIPALIGN="$SDK/android-15/zipalign"
 APKSIGNER="$SDK/android-15/apksigner"
-KEYSTORE="$BUILD/debug.keystore"
+KEYSTORE="$ROOT/_keys/debug.keystore"
 
 # JDK: prefer the downloaded BellSoft JDK 17, fall back to any javac on PATH
 JDK_DIR="$(ls -d "$ROOT"/_work/tools/jdk-17* 2>/dev/null | head -1 || true)"
@@ -65,6 +65,11 @@ cp "$BUILD/base.apk" "$BUILD/unsigned.apk"
 "$ZIPALIGN" -f 4 "$BUILD/unsigned.apk" "$BUILD/aligned.apk"
 
 echo "== 6/6 sign =="
+# The key lives outside _build/ on purpose: _build/ is wiped at the start of
+# every build, and a fresh key on every build would make each APK refuse to
+# install over the previous one (Android rejects an update signed with a
+# different key). Keeping one committed key means installs upgrade in place.
+mkdir -p "$(dirname "$KEYSTORE")"
 if [ ! -f "$KEYSTORE" ]; then
     "$KEYTOOL" -genkeypair -keystore "$KEYSTORE" -alias androiddebugkey \
         -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 \

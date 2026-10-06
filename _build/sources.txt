@@ -1,5 +1,6 @@
 /media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/SettingsActivity.java
 /media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/MainSurfaceView.java
+/media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/ViewScale.java
 /media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/ScaleConfig.java
 /media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/Recorder.java
 /media/fsek294Gi/package/pitch-visualize/pitch-visualize/app/src/com/tadaoyamaoka/vocalpitchmonitor/MainActivity.java
