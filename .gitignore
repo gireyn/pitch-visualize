@@ -3,3 +3,4 @@ _work/
 
 # build.sh scratch: wiped at the start of every build and regenerated
 _build/
+build/app/outputs/flutter-apk/.DS_Store
